@@ -31,7 +31,7 @@ from glob import glob
 
 arguments = docopt(__doc__)
 filenames = natsorted(arguments["<files>"])
-boxsize = h5py.File(filenames[0])["Header"].attrs["BoxSize"]
+boxsize = h5py.File(filenames[0], 'r')["Header"].attrs["BoxSize"]
 
 r = float(arguments["--rmax"]) if arguments["--rmax"] else boxsize/10
 center = np.array([float(c) for c in arguments["--c"].split(',')])
@@ -50,9 +50,9 @@ font = ImageFont.truetype("LiberationSans-Regular.ttf", res//12)
 def TransformCoords(x, angle):
     return np.c_[x[:,0]*np.cos(angle) + x[:,1]*np.sin(angle), -x[:,0]*np.sin(angle) + x[:,1]*np.cos(angle), x[:,2]]
 
-def MakeImage(i, rot=0):
-    F1 = h5py.File(filenames[i])
-    F2 = h5py.File(filenames[min(i+1,len(filenames)-1)])
+def MakeImage(i):
+    F1 = h5py.File(filenames[i],'r')
+    F2 = h5py.File(filenames[min(i+1,len(filenames)-1)],'r')
     id1, id2 = np.array(F1["PartType0"]["ParticleIDs"]), np.array(F2["PartType0"]["ParticleIDs"])
     unique, counts = np.unique(id2, return_counts=True)
     doubles = unique[counts>1]
@@ -141,13 +141,13 @@ def MakeImage(i, rot=0):
 #                d.ellipse(coords, pen, p)#, fill=(155, 176, 255))
             p = aggdraw.Brush((155, 176, 255))
             for X in x_star[m_star>0]:
-                X -= boxsize/2
+                X -= boxsize/2 - center
                 coords = np.concatenate([(X[:2]+r)/(2*r)*gridres-gridres/400, (X[:2]+r)/(2*r)*gridres+gridres/400])
                 d.ellipse(coords, pen, p)#, fill=(155, 176, 255))
             d.flush()
         F.save(filename)
         F.close()
-
+ 
 if nproc>1:
     Parallel(n_jobs=nproc)(delayed(MakeImage)(i) for i in range(len(filenames)))
 else:
