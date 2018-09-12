@@ -7,7 +7,7 @@ Options:
     -h --help           Show this screen.
     --rmax=<pc>         Maximum radius of plot window; defaults to box size/10.
     --c=<cx,cy,cz>      Coordinates of plot window center relative to box center [default: 0.0,0.0,0.0]
-    --limits=<min,max>  Dynamic range of surface density colormap [default: 10,1e5]
+    --limits=<min,max>  Dynamic range of surface density colormap [default: 10,1e4]
     --cmap=<name>       Name of colormap to use [default: viridis]
     --interp_fac=<N>    Number of interpolating frames per snapshot [default: 1]
     --np=<N>            Number of processors to run on [default: 1]
