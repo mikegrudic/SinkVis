@@ -57,12 +57,17 @@ i = 0
 
 font = ImageFont.truetype("LiberationSans-Regular.ttf", res//12)
 
+image_paths = []
+
+file_numbers = [int(f.split("snapshot_")[1].split(".hdf5")[0]) for f in filenames]
+print(file_numbers)
+
 def TransformCoords(x, angle):
     return np.c_[x[:,0]*np.cos(angle) + x[:,1]*np.sin(angle), -x[:,0]*np.sin(angle) + x[:,1]*np.cos(angle), x[:,2]]
 
 def MakeImage(i):
-    F1 = h5py.File(filenames[i],'r')
-    F2 = h5py.File(filenames[min(i+1,len(filenames)-1)],'r')
+    F1 = h5py.File(filenames[i-min(file_numbers)],'r')
+    F2 = h5py.File(filenames[min(i+1-min(file_numbers),len(filenames)-1)],'r')
     id1, id2 = np.array(F1["PartType0"]["ParticleIDs"]), np.array(F2["PartType0"]["ParticleIDs"])
     unique, counts = np.unique(id2, return_counts=True)
     doubles = unique[counts>1]
@@ -135,6 +140,7 @@ def MakeImage(i):
         filename = "SurfaceDensity_%s.%s.png"%(str(i).zfill(4),k)
         plt.imsave(filename, data) #f.split("snapshot_")[1].split(".hdf5")[0], map)
         print(filename)
+
         F = Image.open(filename)
         draw = ImageDraw.Draw(F)
         gridres=res
@@ -160,16 +166,19 @@ def MakeImage(i):
 
 def MakeMovie():
     #Find files
-    filenames=natsorted(glob('SurfaceDensity_???.?.png'))
+    filenames=natsorted(glob('SurfaceDensity_????.?.png'))
     #Use ffmpeg to create movie
-    os.system("ffmpeg -r "+str(fps)+" -f image2 -i SurfaceDensity_%03d.0.png  -vcodec mpeg4 "+movie_name+".mp4")
+    file("frames.txt",'w').write('\n'.join(["file '%s'"%f for f in filenames]))
+    os.system("ffmpeg -r " + str(fps) + " -f concat -i frames.txt  -vb 20M -pix_fmt yuv420p  -q:v 0 -vcodec mpeg4 " + movie_name + ".mp4")
     #Erase files, leave movie only
     if only_movie:
         for i in filenames:
             os.remove(i)
- 
+    os.remove("frames.txt")
+    
 if nproc>1:
-    Parallel(n_jobs=nproc)(delayed(MakeImage)(i) for i in range(len(filenames)))
+    Parallel(n_jobs=nproc)(delayed(MakeImage)(i) for i in file_numbers)
 else:
-    [MakeImage(i) for i in range(len(filenames))]
-MakeMovie()
+    [MakeImage(i) for i in file_numbers]
+
+if len(filenames) > 1: MakeMovie() # only make movie if plotting multiple files
