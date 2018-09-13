@@ -20,13 +20,13 @@ Options:
 #Example
 # python SinkVis.py /panfs/ds08/hopkins/guszejnov/GMC_sim/Tests/200msun/MHD_isoT_2e6/output/snapshot*.hdf5 --np=24 --only_movie --movie_name=200msun_MHD_isoT_2e6
 
-import meshoid
+#import meshoid
 from meshoid import GridSurfaceDensity
 import h5py
 from sys import argv
-import matplotlib
+#import matplotlib
 from matplotlib import pyplot as plt
-from matplotlib.colors import LogNorm, rgb_to_hsv, hsv_to_rgb
+#from matplotlib.colors import LogNorm, rgb_to_hsv, hsv_to_rgb
 from PIL import Image, ImageDraw, ImageFont
 import numpy as np
 from joblib import Parallel, delayed
@@ -60,7 +60,7 @@ font = ImageFont.truetype("LiberationSans-Regular.ttf", res//12)
 image_paths = []
 
 file_numbers = [int(f.split("snapshot_")[1].split(".hdf5")[0]) for f in filenames]
-print(file_numbers)
+
 
 def TransformCoords(x, angle):
     return np.c_[x[:,0]*np.cos(angle) + x[:,1]*np.sin(angle), -x[:,0]*np.sin(angle) + x[:,1]*np.cos(angle), x[:,2]]
@@ -127,8 +127,8 @@ def MakeImage(i):
         u = 10**logu
 
         h = float(k)/n_interp * h2 + (n_interp-float(k))/n_interp * h1
-        rho = 32*m1/(4*np.pi*h**3/3)
-        ntot = len(m)
+#        rho = 32*m1/(4*np.pi*h**3/3)
+#        ntot = len(m)
         sigma_gas = GridSurfaceDensity(m, x, h, res, L).T
         if "PartType5" in F1.keys():
             x_star = float(k)/n_interp * x2s + (n_interp-float(k))/n_interp * x1s
