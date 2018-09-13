@@ -4,15 +4,21 @@ Usage:
 SinkVis.py <files> ... [options]
 
 Options:
-    -h --help           Show this screen.
-    --rmax=<pc>         Maximum radius of plot window; defaults to box size/10.
-    --c=<cx,cy,cz>      Coordinates of plot window center relative to box center [default: 0.0,0.0,0.0]
-    --limits=<min,max>  Dynamic range of surface density colormap [default: 10,1e4]
-    --cmap=<name>       Name of colormap to use [default: viridis]
-    --interp_fac=<N>    Number of interpolating frames per snapshot [default: 1]
-    --np=<N>            Number of processors to run on [default: 1]
-    --res=<N>           Image resolution [default: 400]
+    -h --help            Show this screen.
+    --rmax=<pc>          Maximum radius of plot window; defaults to box size/10.
+    --c=<cx,cy,cz>       Coordinates of plot window center relative to box center [default: 0.0,0.0,0.0]
+    --limits=<min,max>   Dynamic range of surface density colormap [default: 10,1e4]
+    --cmap=<name>        Name of colormap to use [default: viridis]
+    --interp_fac=<N>     Number of interpolating frames per snapshot [default: 1]
+    --np=<N>             Number of processors to run on [default: 1]
+    --res=<N>            Image resolution [default: 500]
+    --only_movie         Only the movie is saved, the images are removed at the end
+    --fps=<fps>          Frame per second for movie [default: 20]
+    --movie_name=<name>  Filename of the output movie file without format [default: sink_movie]
 """
+
+#Example
+# python SinkVis.py /panfs/ds08/hopkins/guszejnov/GMC_sim/Tests/200msun/MHD_isoT_2e6/output/snapshot*.hdf5 --np=24 --only_movie --movie_name=200msun_MHD_isoT_2e6
 
 import meshoid
 from meshoid import GridSurfaceDensity
@@ -28,6 +34,7 @@ import aggdraw
 from natsort import natsorted
 from docopt import docopt
 from glob import glob
+import os
 
 arguments = docopt(__doc__)
 filenames = natsorted(arguments["<files>"])
@@ -40,6 +47,9 @@ res = int(arguments["--res"])
 nproc = int(arguments["--np"])
 n_interp = int(arguments["--interp_fac"])
 cmap = arguments["--cmap"]
+only_movie = arguments["--only_movie"]
+fps = float(arguments["--fps"])
+movie_name = arguments["--movie_name"]
 
 L = r*2
 
@@ -147,8 +157,19 @@ def MakeImage(i):
             d.flush()
         F.save(filename)
         F.close()
+
+def MakeMovie():
+    #Find files
+    filenames=natsorted(glob('SurfaceDensity_???.?.png'))
+    #Use ffmpeg to create movie
+    os.system("ffmpeg -r "+str(fps)+" -f image2 -i SurfaceDensity_%03d.0.png  -vcodec mpeg4 "+movie_name+".mp4")
+    #Erase files, leave movie only
+    if only_movie:
+        for i in filenames:
+            os.remove(i)
  
 if nproc>1:
     Parallel(n_jobs=nproc)(delayed(MakeImage)(i) for i in range(len(filenames)))
 else:
     [MakeImage(i) for i in range(len(filenames))]
+MakeMovie()
