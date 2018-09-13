@@ -122,7 +122,7 @@ def MakeImage(i):
         data = fgas[:,:,np.newaxis]*plt.get_cmap(cmap)(fgas)[:,:,:3] 
         data = np.clip(data,0,1)
 
-        filename = "SurfaceDensity_%s.%s.png"%(str(i).zfill(3),k)
+        filename = "SurfaceDensity_%s.%s.png"%(str(i).zfill(4),k)
         plt.imsave(filename, data) #f.split("snapshot_")[1].split(".hdf5")[0], map)
         print(filename)
         F = Image.open(filename)
