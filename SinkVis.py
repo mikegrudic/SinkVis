@@ -68,35 +68,37 @@ def TransformCoords(x, angle):
 def MakeImage(i):
     F1 = h5py.File(filenames[i],'r')
     F2 = h5py.File(filenames[min(i+1,len(filenames)-1)],'r')
-    id1, id2 = np.array(F1["PartType0"]["ParticleIDs"]), np.array(F2["PartType0"]["ParticleIDs"])
-    unique, counts = np.unique(id2, return_counts=True)
-    doubles = unique[counts>1]
-    id2[np.in1d(id2,doubles)]=-1
 
     t1, t2 = F1["Header"].attrs["Time"], F2["Header"].attrs["Time"]
-    x1, x2 = np.array(F1["PartType0"]["Coordinates"])[id1.argsort()], np.array(F2["PartType0"]["Coordinates"])[id2.argsort()]
-    x1 -= boxsize/2 + center
-    x2 -= boxsize/2 + center
-    u1, u2 = np.array(F1["PartType0"]["InternalEnergy"])[id1.argsort()], np.array(F2["PartType0"]["InternalEnergy"])[id2.argsort()]
-    h1, h2 = np.array(F1["PartType0"]["SmoothingLength"])[id1.argsort()], np.array(F2["PartType0"]["SmoothingLength"])[id2.argsort()]
-    m1, m2 = np.array(F1["PartType0"]["Masses"])[id1.argsort()], np.array(F2["PartType0"]["Masses"])[id2.argsort()]
-    
-    # take only the particles that are in both snaps
-    
-    common_ids = np.intersect1d(id1,id2)
-    idx1 = np.in1d(np.sort(id1),common_ids)
-    idx2 = np.in1d(np.sort(id2),common_ids)
+
+    if "PartType0" in F1.keys():
+        id1, id2 = np.array(F1["PartType0"]["ParticleIDs"]), np.array(F2["PartType0"]["ParticleIDs"])
+        unique, counts = np.unique(id2, return_counts=True)
+        doubles = unique[counts>1]
+        id2[np.in1d(id2,doubles)]=-1
+        x1, x2 = np.array(F1["PartType0"]["Coordinates"])[id1.argsort()], np.array(F2["PartType0"]["Coordinates"])[id2.argsort()]
+        x1 -= boxsize/2 + center
+        x2 -= boxsize/2 + center
+        u1, u2 = np.array(F1["PartType0"]["InternalEnergy"])[id1.argsort()], np.array(F2["PartType0"]["InternalEnergy"])[id2.argsort()]
+        h1, h2 = np.array(F1["PartType0"]["SmoothingLength"])[id1.argsort()], np.array(F2["PartType0"]["SmoothingLength"])[id2.argsort()]
+        m1, m2 = np.array(F1["PartType0"]["Masses"])[id1.argsort()], np.array(F2["PartType0"]["Masses"])[id2.argsort()]
+
+        # take only the particles that are in both snaps
+
+        common_ids = np.intersect1d(id1,id2)
+        idx1 = np.in1d(np.sort(id1),common_ids)
+        idx2 = np.in1d(np.sort(id2),common_ids)
 
 
-    x1 = x1[idx1]
-    u1 = u1[idx1]
-    h1 = h1[idx1]
-    m1 = m1[idx1]
-    x2 = x2[idx2]
-    u2 = u2[idx2]
-    h2 = h2[idx2]
-    m2 = m2[idx2]
-    m = np.array(F2["PartType0"]["Masses"])[idx2]
+        x1 = x1[idx1]
+        u1 = u1[idx1]
+        h1 = h1[idx1]
+        m1 = m1[idx1]
+        x2 = x2[idx2]
+        u2 = u2[idx2]
+        h2 = h2[idx2]
+        m2 = m2[idx2]
+        m = np.array(F2["PartType0"]["Masses"])[idx2]
     
     if "PartType5" in F1.keys():
         id1s, id2s = np.array(F1["PartType5"]["ParticleIDs"]), np.array(F2["PartType5"]["ParticleIDs"])
@@ -121,15 +123,16 @@ def MakeImage(i):
 
     time = F1["Header"].attrs["Time"]
     for k in range(n_interp):
-        x = float(k)/n_interp * x2 + (n_interp-float(k))/n_interp * x1
-        
-        logu = float(k)/n_interp * np.log10(u2) + (n_interp-float(k))/n_interp * np.log10(u1)
-        u = 10**logu
+        if "PartType0" in F1.keys():
+            x = float(k)/n_interp * x2 + (n_interp-float(k))/n_interp * x1
 
-        h = float(k)/n_interp * h2 + (n_interp-float(k))/n_interp * h1
-#        rho = 32*m1/(4*np.pi*h**3/3)
-#        ntot = len(m)
-        sigma_gas = GridSurfaceDensity(m, x, h, res, L).T
+            logu = float(k)/n_interp * np.log10(u2) + (n_interp-float(k))/n_interp * np.log10(u1)
+            u = 10**logu
+
+            h = float(k)/n_interp * h2 + (n_interp-float(k))/n_interp * h1
+            sigma_gas = GridSurfaceDensity(m, x, h, res, L).T
+        else:
+            sigma_gas = np.zeros((res,res))
         if "PartType5" in F1.keys():
             x_star = float(k)/n_interp * x2s + (n_interp-float(k))/n_interp * x1s
         fgas = (np.log10(sigma_gas)-np.log10(limits[0]))/np.log10(limits[1]/limits[0])
@@ -159,6 +162,7 @@ def MakeImage(i):
             p = aggdraw.Brush((155, 176, 255))
             for X in x_star[m_star>0]:
                 X -= boxsize/2 - center
+                print(X)
                 coords = np.concatenate([(X[:2]+r)/(2*r)*gridres-gridres/400, (X[:2]+r)/(2*r)*gridres+gridres/400])
                 d.ellipse(coords, pen, p)#, fill=(155, 176, 255))
             d.flush()
