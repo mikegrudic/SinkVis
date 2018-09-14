@@ -65,7 +65,7 @@ filedict = dict(zip(file_numbers, filenames))
 def TransformCoords(x, angle):
     return np.c_[x[:,0]*np.cos(angle) + x[:,1]*np.sin(angle), -x[:,0]*np.sin(angle) + x[:,1]*np.cos(angle), x[:,2]]
 
-star_type = "PartType1"
+star_type = "PartType5"
 
 def MakeImage(i):
     F1 = h5py.File(filenames[i],'r')
