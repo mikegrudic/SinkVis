@@ -122,7 +122,7 @@ def MakeImage(i):
         m1s = m1s[idx1]
         x2s = x2s[idx2]
         m2s = m2s[idx2]
-        m_star = m2s
+        m_star = m2s[idx1]
 
     time = F1["Header"].attrs["Time"]
     for k in range(n_interp):
