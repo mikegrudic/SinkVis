@@ -111,7 +111,7 @@ def MakeImage(i):
 
         x1s, x2s = np.array(F1[sink_type]["Coordinates"])[id1s.argsort()], np.array(F2[sink_type]["Coordinates"])[id2s.argsort()]
         #m1s, m2s = (np.array(F1[sink_type]["Masses"])*np.array(F1[sink_type]["OStarNumber"]))[id1s.argsort()], (np.array(F2[sink_type]["Masses"])*np.array(F2[sink_type]["OStarNumber"]))[id2s.argsort()]
-        m1s, m2s = np.array(F1[sink_type]["Masses"]), np.array(F2[sink_type]["Masses"])
+        m1s, m2s = np.array(F1[sink_type]["Masses"])[id1s.argsort()], np.array(F2[sink_type]["Masses"])[id2s.argsort()]
         # take only the particles that are in both snaps
 
         common_ids = np.intersect1d(id1s,id2s)
@@ -122,7 +122,7 @@ def MakeImage(i):
         m1s = m1s[idx1]
         x2s = x2s[idx2]
         m2s = m2s[idx2]
-        m_star = m2s[idx2]
+        m_star = m2s
 
     time = F1["Header"].attrs["Time"]
     for k in range(n_interp):
