@@ -15,6 +15,7 @@ Options:
     --only_movie         Only the movie is saved, the images are removed at the end
     --fps=<fps>          Frame per second for movie [default: 20]
     --movie_name=<name>  Filename of the output movie file without format [default: sink_movie]
+    --sink_type=<N>      Particle type of sinks [default: 5]
 """
 
 #Example
@@ -50,7 +51,7 @@ cmap = arguments["--cmap"]
 only_movie = arguments["--only_movie"]
 fps = float(arguments["--fps"])
 movie_name = arguments["--movie_name"]
-
+sink_type = "PartType" + arguments["--sink_type"]
 L = r*2
 
 i = 0
@@ -65,7 +66,7 @@ filedict = dict(zip(file_numbers, filenames))
 def TransformCoords(x, angle):
     return np.c_[x[:,0]*np.cos(angle) + x[:,1]*np.sin(angle), -x[:,0]*np.sin(angle) + x[:,1]*np.cos(angle), x[:,2]]
 
-star_type = "PartType5"
+
 
 def MakeImage(i):
     F1 = h5py.File(filenames[i],'r')
@@ -102,15 +103,15 @@ def MakeImage(i):
         m2 = m2[idx2]
         m = np.array(F2["PartType0"]["Masses"])[idx2]
     
-    if star_type in F1.keys():
-        id1s, id2s = np.array(F1[star_type]["ParticleIDs"]), np.array(F2[star_type]["ParticleIDs"])
+    if sink_type in F1.keys():
+        id1s, id2s = np.array(F1[sink_type]["ParticleIDs"]), np.array(F2[sink_type]["ParticleIDs"])
         unique, counts = np.unique(id2s, return_counts=True)
         doubles = unique[counts>1]
         id2s[np.in1d(id2s,doubles)]=-1
 
-        x1s, x2s = np.array(F1[star_type]["Coordinates"])[id1s.argsort()], np.array(F2[star_type]["Coordinates"])[id2s.argsort()]
-        #m1s, m2s = (np.array(F1[star_type]["Masses"])*np.array(F1[star_type]["OStarNumber"]))[id1s.argsort()], (np.array(F2[star_type]["Masses"])*np.array(F2[star_type]["OStarNumber"]))[id2s.argsort()]
-        m1s, m2s = np.array(F1[star_type]["Masses"]), np.array(F2[star_type]["Masses"])
+        x1s, x2s = np.array(F1[sink_type]["Coordinates"])[id1s.argsort()], np.array(F2[sink_type]["Coordinates"])[id2s.argsort()]
+        #m1s, m2s = (np.array(F1[sink_type]["Masses"])*np.array(F1[sink_type]["OStarNumber"]))[id1s.argsort()], (np.array(F2[sink_type]["Masses"])*np.array(F2[sink_type]["OStarNumber"]))[id2s.argsort()]
+        m1s, m2s = np.array(F1[sink_type]["Masses"]), np.array(F2[sink_type]["Masses"])
         # take only the particles that are in both snaps
 
         common_ids = np.intersect1d(id1s,id2s)
@@ -135,7 +136,7 @@ def MakeImage(i):
             sigma_gas = GridSurfaceDensity(m, x, h, res, L).T
         else:
             sigma_gas = np.zeros((res,res))
-        if star_type in F1.keys():
+        if sink_type in F1.keys():
             x_star = float(k)/n_interp * x2s + (n_interp-float(k))/n_interp * x1s
         fgas = (np.log10(sigma_gas)-np.log10(limits[0]))/np.log10(limits[1]/limits[0])
         fgas = np.clip(fgas,0,1)
@@ -153,7 +154,7 @@ def MakeImage(i):
         draw.line(((gridres/16, 7*gridres/8), (gridres*5/16, 7*gridres/8)), fill="#FFFFFF", width=6)
         draw.text((gridres/16, 7*gridres/8 + 5), "%gpc"%(r*500/1000), font=font)
         draw.text((gridres/16, gridres/24), "%3.2gMyr"%(time*979), font=font)
-        if star_type in F1.keys():
+        if sink_type in F1.keys():
             d = aggdraw.Draw(F)
             pen = aggdraw.Pen("white",gridres/800)
             p = aggdraw.Brush((255, 0,0))
