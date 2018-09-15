@@ -54,13 +54,14 @@ movie_name = arguments["--movie_name"]
 sink_type = "PartType" + arguments["--sink_type"]
 L = r*2
 
-i = 0
+#i = 0
 
 font = ImageFont.truetype("LiberationSans-Regular.ttf", res//12)
 
 image_paths = []
 
 file_numbers = [int(f.split("snapshot_")[1].split(".hdf5")[0]) for f in filenames]
+#print(file_numbers)
 filedict = dict(zip(file_numbers, filenames))
 
 def TransformCoords(x, angle):
@@ -69,6 +70,7 @@ def TransformCoords(x, angle):
 
 
 def MakeImage(i):
+#    print(i)
     F1 = h5py.File(filenames[i],'r')
     F2 = h5py.File(filenames[min(i+1,len(filenames)-1)],'r')
 
@@ -101,7 +103,9 @@ def MakeImage(i):
         u2 = u2[idx2]
         h2 = h2[idx2]
         m2 = m2[idx2]
-        m = np.array(F2["PartType0"]["Masses"])[idx2]
+        m = m2
+#        print(len(idx2))
+#        m = np.array(F2["PartType0"]["Masses"])[id[idx2]
     
     if sink_type in F1.keys():
         id1s, id2s = np.array(F1[sink_type]["ParticleIDs"]), np.array(F2[sink_type]["ParticleIDs"])
@@ -133,6 +137,7 @@ def MakeImage(i):
             u = 10**logu
 
             h = float(k)/n_interp * h2 + (n_interp-float(k))/n_interp * h1
+#            print(m)
             sigma_gas = GridSurfaceDensity(m, x, h, res, L).T
         else:
             sigma_gas = np.zeros((res,res))
@@ -143,6 +148,7 @@ def MakeImage(i):
         data = fgas[:,:,np.newaxis]*plt.get_cmap(cmap)(fgas)[:,:,:3] 
         data = np.clip(data,0,1)
 
+#        print(i)
         file_number = file_numbers[i]
         filename = "SurfaceDensity_%s.%s.png"%(str(file_number).zfill(4),k)
         plt.imsave(filename, data) #f.split("snapshot_")[1].split(".hdf5")[0], map)
@@ -163,10 +169,10 @@ def MakeImage(i):
 #                coords = np.concatenate([(X[:2]+r)/(2*r)*gridres-gridres/800, (X[:2]+r)/(2*r)*gridres+gridres/800])
 #                d.ellipse(coords, pen, p)#, fill=(155, 176, 255))
             p = aggdraw.Brush((155, 176, 255))
-            for i in np.arange(len(x_star))[m_star>0]:
-                X = x_star[i]
-                m = m_star[i]
-                star_size = gridres/400 * (m/0.1)**(1./3)
+            for j in np.arange(len(x_star))[m_star>0]:
+                X = x_star[j]
+                ms = m_star[j]
+                star_size = gridres/400 * (ms/0.1)**(1./3)
                 star_size = max(1,star_size)
                 X -= boxsize/2 + center
                 coords = np.concatenate([(X[:2]+r)/(2*r)*gridres-star_size, (X[:2]+r)/(2*r)*gridres+star_size])
@@ -186,7 +192,7 @@ def MakeMovie():
         for i in filenames:
             os.remove(i)
     os.remove("frames.txt")
-    
+
 if nproc>1:
     Parallel(n_jobs=nproc)(delayed(MakeImage)(i) for i in range(len(filenames)))
 else:
