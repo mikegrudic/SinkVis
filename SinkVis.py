@@ -163,9 +163,12 @@ def MakeImage(i):
 #                coords = np.concatenate([(X[:2]+r)/(2*r)*gridres-gridres/800, (X[:2]+r)/(2*r)*gridres+gridres/800])
 #                d.ellipse(coords, pen, p)#, fill=(155, 176, 255))
             p = aggdraw.Brush((155, 176, 255))
-            for X in x_star[m_star>0]:
+            for i in np.arange(len(x_star))[m_star>0]:
+                X = x_star[i]
+                m = m_star[i]
+                star_size = gridres/400 * (m/0.1)**(1./3)
                 X -= boxsize/2 + center
-                coords = np.concatenate([(X[:2]+r)/(2*r)*gridres-gridres/400, (X[:2]+r)/(2*r)*gridres+gridres/400])
+                coords = np.concatenate([(X[:2]+r)/(2*r)*gridres-star_size, (X[:2]+r)/(2*r)*gridres+star_size])
                 d.ellipse(coords, pen, p)#, fill=(155, 176, 255))
             d.flush()
         F.save(filename)
