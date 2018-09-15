@@ -167,6 +167,7 @@ def MakeImage(i):
                 X = x_star[i]
                 m = m_star[i]
                 star_size = gridres/400 * (m/0.1)**(1./3)
+                star_size = max(1,star_size)
                 X -= boxsize/2 + center
                 coords = np.concatenate([(X[:2]+r)/(2*r)*gridres-star_size, (X[:2]+r)/(2*r)*gridres+star_size])
                 d.ellipse(coords, pen, p)#, fill=(155, 176, 255))
