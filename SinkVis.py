@@ -16,6 +16,8 @@ Options:
     --fps=<fps>          Frame per second for movie [default: 20]
     --movie_name=<name>  Filename of the output movie file without format [default: sink_movie]
     --sink_type=<N>      Particle type of sinks [default: 5]
+    --sink_scale=<msun>  Sink particle mass such that apparent sink size is 1 pixel [default: 0.1]
+    --center_on_star     Center image on the most massive sink particle
 """
 
 #Example
@@ -52,6 +54,8 @@ only_movie = arguments["--only_movie"]
 fps = float(arguments["--fps"])
 movie_name = arguments["--movie_name"]
 sink_type = "PartType" + arguments["--sink_type"]
+sink_scale = float(arguments["--sink_scale"])
+center_on_star = arguments["--center_on_star"]
 L = r*2
 
 #i = 0
@@ -67,7 +71,10 @@ filedict = dict(zip(file_numbers, filenames))
 def TransformCoords(x, angle):
     return np.c_[x[:,0]*np.cos(angle) + x[:,1]*np.sin(angle), -x[:,0]*np.sin(angle) + x[:,1]*np.cos(angle), x[:,2]]
 
-
+def StarColor(mass_in_msun):
+    star_colors = np.array([[255, 203, 132],[255, 243, 233],[155, 176, 255]])
+    colors = np.int_([np.interp(np.log10(mass_in_msun),[-1,0,1],star_colors[:,i]) for i in range(3)])
+    return (colors[0],colors[1],colors[2])# if len(colors)==1 else colors)
 
 def MakeImage(i):
 #    print(i)
@@ -76,6 +83,8 @@ def MakeImage(i):
 
     t1, t2 = F1["Header"].attrs["Time"], F2["Header"].attrs["Time"]
 
+    if not sink_type in F1.keys() and center_on_star: return
+    
     if "PartType0" in F1.keys():
         id1, id2 = np.array(F1["PartType0"]["ParticleIDs"]), np.array(F2["PartType0"]["ParticleIDs"])
         unique, counts = np.unique(id2, return_counts=True)
@@ -106,7 +115,7 @@ def MakeImage(i):
         m = m2
 #        print(len(idx2))
 #        m = np.array(F2["PartType0"]["Masses"])[id[idx2]
-    
+     
     if sink_type in F1.keys():
         id1s, id2s = np.array(F1[sink_type]["ParticleIDs"]), np.array(F2[sink_type]["ParticleIDs"])
         unique, counts = np.unique(id2s, return_counts=True)
@@ -130,9 +139,14 @@ def MakeImage(i):
 
     time = F1["Header"].attrs["Time"]
     for k in range(n_interp):
+        if sink_type in F1.keys():
+            x_star = float(k)/n_interp * x2s + (n_interp-float(k))/n_interp * x1s
+        star_center =  (x_star[m_star.argmax()]-boxsize/2 if (center_on_star and sink_type in F1.keys()) else np.zeros(3))
+#            if center_on_star: star_center = x_star[m_star.argmax()] else: star_center = np.zeros(3)
         if "PartType0" in F1.keys():
-            x = float(k)/n_interp * x2 + (n_interp-float(k))/n_interp * x1
-
+            x = float(k)/n_interp * x2 + (n_interp-float(k))/n_interp * x1 - star_center
+#            if center_on_star and sink_type in F1.keys(): x -= star_center
+            
             logu = float(k)/n_interp * np.log10(u2) + (n_interp-float(k))/n_interp * np.log10(u1)
             u = 10**logu
 
@@ -141,8 +155,7 @@ def MakeImage(i):
             sigma_gas = GridSurfaceDensity(m, x, h, res, L).T
         else:
             sigma_gas = np.zeros((res,res))
-        if sink_type in F1.keys():
-            x_star = float(k)/n_interp * x2s + (n_interp-float(k))/n_interp * x1s
+
         fgas = (np.log10(sigma_gas)-np.log10(limits[0]))/np.log10(limits[1]/limits[0])
         fgas = np.clip(fgas,0,1)
         data = fgas[:,:,np.newaxis]*plt.get_cmap(cmap)(fgas)[:,:,:3] 
@@ -161,19 +174,20 @@ def MakeImage(i):
         draw.text((gridres/16, 7*gridres/8 + 5), "%gpc"%(r*500/1000), font=font)
         draw.text((gridres/16, gridres/24), "%3.2gMyr"%(time*979), font=font)
         if sink_type in F1.keys():
-            d = aggdraw.Draw(F)
-            pen = aggdraw.Pen("white",gridres/800)
-            p = aggdraw.Brush((255, 0,0))
+#            p = aggdraw.Brush((255, 0,0))
 #            print(len(x_star))
             #for X in x_star:
 #                coords = np.concatenate([(X[:2]+r)/(2*r)*gridres-gridres/800, (X[:2]+r)/(2*r)*gridres+gridres/800])
 #                d.ellipse(coords, pen, p)#, fill=(155, 176, 255))
-            p = aggdraw.Brush((155, 176, 255))
+            #(155, 176, 255))
+            d = aggdraw.Draw(F)
+            pen = aggdraw.Pen("white",gridres/800)
             for j in np.arange(len(x_star))[m_star>0]:
-                X = x_star[j]
+                X = x_star[j] - star_center
                 ms = m_star[j]
-                star_size = gridres/400 * (ms/0.1)**(1./3)
+                star_size = gridres/400 * (ms/sink_scale)**(1./3)
                 star_size = max(1,star_size)
+                p = aggdraw.Brush(StarColor(ms))
                 X -= boxsize/2 + center
                 coords = np.concatenate([(X[:2]+r)/(2*r)*gridres-star_size, (X[:2]+r)/(2*r)*gridres+star_size])
                 d.ellipse(coords, pen, p)#, fill=(155, 176, 255))
