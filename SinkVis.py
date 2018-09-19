@@ -200,7 +200,7 @@ def MakeMovie():
     filenames=natsorted(glob('SurfaceDensity_????.?.png'))
     #Use ffmpeg to create movie
     file("frames.txt",'w').write('\n'.join(["file '%s'"%f for f in filenames]))
-    os.system("ffmpeg -r " + str(fps) + " -f concat -i frames.txt  -vb 20M -pix_fmt yuv420p  -q:v 0 -vcodec mpeg4 " + movie_name + ".mp4")
+    os.system("ffmpeg -y -r " + str(fps) + " -f concat -i frames.txt  -vb 20M -pix_fmt yuv420p  -q:v 0 -vcodec mpeg4 " + movie_name + ".mp4")
     #Erase files, leave movie only
     if only_movie:
         for i in filenames:
