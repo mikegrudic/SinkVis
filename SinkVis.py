@@ -9,6 +9,7 @@ Options:
     --c=<cx,cy,cz>       Coordinates of plot window center relative to box center [default: 0.0,0.0,0.0]
     --limits=<min,max>   Dynamic range of surface density colormap [default: 10,1e4]
     --Tlimits=<min,max>  Dynamic range of temperature colormap in K [default: 10,1000]
+    --Tcmap=<name>       Name of colormap to use for temperature [default: inferno]
     --cmap=<name>        Name of colormap to use [default: viridis]
     --interp_fac=<N>     Number of interpolating frames per snapshot [default: 1]
     --np=<N>             Number of processors to run on [default: 1]
@@ -53,6 +54,7 @@ res = int(arguments["--res"])
 nproc = int(arguments["--np"])
 n_interp = int(arguments["--interp_fac"])
 cmap = arguments["--cmap"]
+Tcmap = arguments["--Tcmap"]
 only_movie = arguments["--only_movie"]
 plot_T_map = arguments["--plot_T_map"]
 fps = float(arguments["--fps"])
@@ -169,7 +171,7 @@ def MakeImage(i):
         #Gas temperature map
         fTgas = (np.log10(Tmap_gas)-np.log10(Tlimits[0]))/np.log10(Tlimits[1]/Tlimits[0])
         fTgas = np.clip(fTgas,0,1)
-        Tdata = fTgas[:,:,np.newaxis]*plt.get_cmap(cmap)(fTgas)[:,:,:3] 
+        Tdata = fTgas[:,:,np.newaxis]*plt.get_cmap(Tcmap)(fTgas)[:,:,:3] 
         Tdata = np.clip(Tdata,0,1)
 
 #        print(i)
