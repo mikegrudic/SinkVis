@@ -15,6 +15,7 @@ Options:
     --np=<N>             Number of processors to run on [default: 1]
     --res=<N>            Image resolution [default: 500]
     --only_movie         Only the movie is saved, the images are removed at the end
+    --no_movie           Does not create a movie, only makes images
     --fps=<fps>          Frame per second for movie [default: 20]
     --movie_name=<name>  Filename of the output movie file without format [default: sink_movie]
     --sink_type=<N>      Particle type of sinks [default: 5]
@@ -56,6 +57,7 @@ n_interp = int(arguments["--interp_fac"])
 cmap = arguments["--cmap"]
 Tcmap = arguments["--Tcmap"]
 only_movie = arguments["--only_movie"]
+no_movie = arguments["--no_movie"]
 plot_T_map = arguments["--plot_T_map"]
 fps = float(arguments["--fps"])
 movie_name = arguments["--movie_name"]
@@ -246,4 +248,5 @@ if nproc>1:
 else:
     [MakeImage(i) for i in range(len(filenames))]
 
-if len(filenames) > 1: MakeMovie() # only make movie if plotting multiple files
+if (len(filenames) > 1 and (not no_movie) ): 
+    MakeMovie() # only make movie if plotting multiple files
