@@ -22,7 +22,7 @@ Options:
     --sink_scale=<msun>  Sink particle mass such that apparent sink size is 1 pixel [default: 0.1]
     --center_on_star     Center image on the most massive sink particle
     --plot_T_map         Plots both surface density and average temperature maps
-    --outputfolder       Specifies the folder to save the images and movies to
+    --outputfolder=<name>       Specifies the folder to save the images and movies to
 """
 
 #Example
