@@ -18,6 +18,7 @@ Options:
     --sink_type=<N>      Particle type of sinks [default: 5]
     --sink_scale=<msun>  Sink particle mass such that apparent sink size is 1 pixel [default: 0.1]
     --center_on_star     Center image on the most massive sink particle
+    --galunits           Use default GADGET units
 """
 
 #Example
@@ -51,14 +52,19 @@ nproc = int(arguments["--np"])
 n_interp = int(arguments["--interp_fac"])
 cmap = arguments["--cmap"]
 only_movie = arguments["--only_movie"]
+galunits = arguments["--galunits"]
 fps = float(arguments["--fps"])
 movie_name = arguments["--movie_name"]
 sink_type = "PartType" + arguments["--sink_type"]
 sink_scale = float(arguments["--sink_scale"])
 center_on_star = arguments["--center_on_star"]
 L = r*2
-
+length_unit = (1e3 if galunits else 1.)
+mass_unit = (1e10 if galunits else 1.)
 #i = 0
+boxsize *= length_unit
+r *= length_unit
+L *= length_unit
 
 font = ImageFont.truetype("LiberationSans-Regular.ttf", res//12)
 
@@ -79,7 +85,7 @@ def StarColor(mass_in_msun):
 def MakeImage(i):
 #    print(i)
     F1 = h5py.File(filenames[i],'r')
-    F2 = h5py.File(filenames[min(i+1,len(filenames)-1)],'r')
+    F2 = (h5py.File(filenames[min(i+1,len(filenames)-1)],'r') if n_interp>1 else F1)
 
     t1, t2 = F1["Header"].attrs["Time"], F2["Header"].attrs["Time"]
 
@@ -90,12 +96,13 @@ def MakeImage(i):
         unique, counts = np.unique(id2, return_counts=True)
         doubles = unique[counts>1]
         id2[np.in1d(id2,doubles)]=-1
-        x1, x2 = np.array(F1["PartType0"]["Coordinates"])[id1.argsort()], np.array(F2["PartType0"]["Coordinates"])[id2.argsort()]
-        x1 -= boxsize/2 + center
-        x2 -= boxsize/2 + center
+        x1, x2 = length_unit*np.array(F1["PartType0"]["Coordinates"])[id1.argsort()], length_unit*np.array(F2["PartType0"]["Coordinates"])[id2.argsort()]
+        if not galunits:
+            x1 -= boxsize/2 + center
+            x2 -= boxsize/2 + center
         u1, u2 = np.array(F1["PartType0"]["InternalEnergy"])[id1.argsort()], np.array(F2["PartType0"]["InternalEnergy"])[id2.argsort()]
-        h1, h2 = np.array(F1["PartType0"]["SmoothingLength"])[id1.argsort()], np.array(F2["PartType0"]["SmoothingLength"])[id2.argsort()]
-        m1, m2 = np.array(F1["PartType0"]["Masses"])[id1.argsort()], np.array(F2["PartType0"]["Masses"])[id2.argsort()]
+        h1, h2 = np.array(F1["PartType0"]["SmoothingLength"])[id1.argsort()] * length_unit, np.array(F2["PartType0"]["SmoothingLength"])[id2.argsort()] * length_unit
+        m1, m2 = np.array(F1["PartType0"]["Masses"])[id1.argsort()] * mass_unit, np.array(F2["PartType0"]["Masses"])[id2.argsort()] * mass_unit
 
         # take only the particles that are in both snaps
 
@@ -122,9 +129,9 @@ def MakeImage(i):
         doubles = unique[counts>1]
         id2s[np.in1d(id2s,doubles)]=-1
 
-        x1s, x2s = np.array(F1[sink_type]["Coordinates"])[id1s.argsort()], np.array(F2[sink_type]["Coordinates"])[id2s.argsort()]
+        x1s, x2s = np.array(F1[sink_type]["Coordinates"])[id1s.argsort()] * length_unit, np.array(F2[sink_type]["Coordinates"])[id2s.argsort()] * length_unit
         #m1s, m2s = (np.array(F1[sink_type]["Masses"])*np.array(F1[sink_type]["OStarNumber"]))[id1s.argsort()], (np.array(F2[sink_type]["Masses"])*np.array(F2[sink_type]["OStarNumber"]))[id2s.argsort()]
-        m1s, m2s = np.array(F1[sink_type]["Masses"])[id1s.argsort()], np.array(F2[sink_type]["Masses"])[id2s.argsort()]
+        m1s, m2s = np.array(F1[sink_type]["Masses"])[id1s.argsort()] * mass_unit, np.array(F2[sink_type]["Masses"])[id2s.argsort()] * mass_unit
         # take only the particles that are in both snaps
 
         common_ids = np.intersect1d(id1s,id2s)
@@ -141,7 +148,8 @@ def MakeImage(i):
     for k in range(n_interp):
         if sink_type in F1.keys():
             x_star = float(k)/n_interp * x2s + (n_interp-float(k))/n_interp * x1s
-        star_center =  (x_star[m_star.argmax()]-boxsize/2 if (center_on_star and sink_type in F1.keys()) else np.zeros(3))
+#            print(x_star)
+        star_center =  (x_star[m_star.argmax()]-boxsize/2 if (center_on_star and sink_type in F1.keys()) else np.zeros(3)) 
 #            if center_on_star: star_center = x_star[m_star.argmax()] else: star_center = np.zeros(3)
         if "PartType0" in F1.keys():
             x = float(k)/n_interp * x2 + (n_interp-float(k))/n_interp * x1 - star_center
@@ -152,6 +160,8 @@ def MakeImage(i):
 
             h = float(k)/n_interp * h2 + (n_interp-float(k))/n_interp * h1
 #            print(m)
+#            h /= 10
+            h = np.clip(h,L/res, 1e100)
             sigma_gas = GridSurfaceDensity(m, x, h, res, L).T
         else:
             sigma_gas = np.zeros((res,res))
@@ -184,11 +194,18 @@ def MakeImage(i):
             pen = aggdraw.Pen("white",gridres/800)
             for j in np.arange(len(x_star))[m_star>0]:
                 X = x_star[j] - star_center
+
+#                if np.random.rand() < 0.1: continue
+#                if galunits: X -= boxsize/2
                 ms = m_star[j]
                 star_size = gridres/400 * (ms/sink_scale)**(1./3)
+
                 star_size = max(1,star_size)
+
                 p = aggdraw.Brush(StarColor(ms))
-                X -= boxsize/2 + center
+                if galunits: X -= center
+                else: X -= boxsize/2 + center
+
                 coords = np.concatenate([(X[:2]+r)/(2*r)*gridres-star_size, (X[:2]+r)/(2*r)*gridres+star_size])
                 d.ellipse(coords, pen, p)#, fill=(155, 176, 255))
             d.flush()
