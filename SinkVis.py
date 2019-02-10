@@ -8,24 +8,29 @@ Options:
     --rmax=<pc>          Maximum radius of plot window; defaults to box size/10.
     --c=<cx,cy,cz>       Coordinates of plot window center relative to box center [default: 0.0,0.0,0.0]
     --limits=<min,max>   Dynamic range of surface density colormap [default: 10,1e4]
+    --Tlimits=<min,max>  Dynamic range of temperature colormap in K [default: 10,1000]
+    --Tcmap=<name>       Name of colormap to use for temperature [default: inferno]
     --cmap=<name>        Name of colormap to use [default: viridis]
     --interp_fac=<N>     Number of interpolating frames per snapshot [default: 1]
     --np=<N>             Number of processors to run on [default: 1]
     --res=<N>            Image resolution [default: 500]
     --only_movie         Only the movie is saved, the images are removed at the end
+    --no_movie           Does not create a movie, only makes images
     --fps=<fps>          Frame per second for movie [default: 20]
     --movie_name=<name>  Filename of the output movie file without format [default: sink_movie]
     --sink_type=<N>      Particle type of sinks [default: 5]
     --sink_scale=<msun>  Sink particle mass such that apparent sink size is 1 pixel [default: 0.1]
     --center_on_star     Center image on the most massive sink particle
     --galunits           Use default GADGET units
+    --plot_T_map         Plots both surface density and average temperature maps
+    --outputfolder=<name>       Specifies the folder to save the images and movies to
 """
 
 #Example
 # python SinkVis.py /panfs/ds08/hopkins/guszejnov/GMC_sim/Tests/200msun/MHD_isoT_2e6/output/snapshot*.hdf5 --np=24 --only_movie --movie_name=200msun_MHD_isoT_2e6
 
 #import meshoid
-from meshoid import GridSurfaceDensity
+from meshoid import GridSurfaceDensity, GridAverage
 import h5py
 from sys import argv
 #import matplotlib
@@ -47,14 +52,19 @@ boxsize = h5py.File(filenames[0], 'r')["Header"].attrs["BoxSize"]
 r = float(arguments["--rmax"]) if arguments["--rmax"] else boxsize/10
 center = np.array([float(c) for c in arguments["--c"].split(',')])
 limits = np.array([float(c) for c in arguments["--limits"].split(',')])
+Tlimits = np.array([float(c) for c in arguments["--Tlimits"].split(',')])
 res = int(arguments["--res"])
 nproc = int(arguments["--np"])
 n_interp = int(arguments["--interp_fac"])
 cmap = arguments["--cmap"]
+Tcmap = arguments["--Tcmap"]
 only_movie = arguments["--only_movie"]
 galunits = arguments["--galunits"]
+no_movie = arguments["--no_movie"]
+plot_T_map = arguments["--plot_T_map"]
 fps = float(arguments["--fps"])
 movie_name = arguments["--movie_name"]
+outputfolder = arguments["--outputfolder"]
 sink_type = "PartType" + arguments["--sink_type"]
 sink_scale = float(arguments["--sink_scale"])
 center_on_star = arguments["--center_on_star"]
@@ -163,70 +173,143 @@ def MakeImage(i):
 #            h /= 10
             h = np.clip(h,L/res, 1e100)
             sigma_gas = GridSurfaceDensity(m, x, h, res, L).T
+            Tmap_gas = GridAverage(u, x, h, res, L).T/1.01e4 #should be similar to mass weighted average if partcile masses roughly constant, also converting to K
         else:
             sigma_gas = np.zeros((res,res))
-
+            Tmap_gas = np.zeros((res,res))
+        #Gas surface density
         fgas = (np.log10(sigma_gas)-np.log10(limits[0]))/np.log10(limits[1]/limits[0])
         fgas = np.clip(fgas,0,1)
         data = fgas[:,:,np.newaxis]*plt.get_cmap(cmap)(fgas)[:,:,:3] 
         data = np.clip(data,0,1)
+        #Gas temperature map
+        fTgas = (np.log10(Tmap_gas)-np.log10(Tlimits[0]))/np.log10(Tlimits[1]/Tlimits[0])
+        fTgas = np.clip(fTgas,0,1)
+        Tdata = fTgas[:,:,np.newaxis]*plt.get_cmap(Tcmap)(fTgas)[:,:,:3] 
+        Tdata = np.clip(Tdata,0,1)
 
 #        print(i)
         file_number = file_numbers[i]
         filename = "SurfaceDensity_%s.%s.png"%(str(file_number).zfill(4),k)
+        Tfilename = "Temperature_%s.%s.png"%(str(file_number).zfill(4),k)
+        if outputfolder:
+            filename=outputfolder+'/'+filename
+            Tfilename=outputfolder+'/'+Tfilename
         plt.imsave(filename, data) #f.split("snapshot_")[1].split(".hdf5")[0], map)
         print(filename)
+# <<<<<<< HEAD
 
-        F = Image.open(filename)
-        draw = ImageDraw.Draw(F)
-        gridres=res
-        draw.line(((gridres/16, 7*gridres/8), (gridres*5/16, 7*gridres/8)), fill="#FFFFFF", width=6)
-        draw.text((gridres/16, 7*gridres/8 + 5), "%gpc"%(r*500/1000), font=font)
-        draw.text((gridres/16, gridres/24), "%3.2gMyr"%(time*979), font=font)
-        if sink_type in F1.keys():
-#            p = aggdraw.Brush((255, 0,0))
-#            print(len(x_star))
-            #for X in x_star:
-#                coords = np.concatenate([(X[:2]+r)/(2*r)*gridres-gridres/800, (X[:2]+r)/(2*r)*gridres+gridres/800])
-#                d.ellipse(coords, pen, p)#, fill=(155, 176, 255))
-            #(155, 176, 255))
-            d = aggdraw.Draw(F)
-            pen = aggdraw.Pen("white",gridres/800)
-            for j in np.arange(len(x_star))[m_star>0]:
-                X = x_star[j] - star_center
+#         F = Image.open(filename)
+#         draw = ImageDraw.Draw(F)
+#         gridres=res
+#         draw.line(((gridres/16, 7*gridres/8), (gridres*5/16, 7*gridres/8)), fill="#FFFFFF", width=6)
+#         draw.text((gridres/16, 7*gridres/8 + 5), "%gpc"%(r*500/1000), font=font)
+#         draw.text((gridres/16, gridres/24), "%3.2gMyr"%(time*979), font=font)
+#         if sink_type in F1.keys():
+# #            p = aggdraw.Brush((255, 0,0))
+# #            print(len(x_star))
+#             #for X in x_star:
+# #                coords = np.concatenate([(X[:2]+r)/(2*r)*gridres-gridres/800, (X[:2]+r)/(2*r)*gridres+gridres/800])
+# #                d.ellipse(coords, pen, p)#, fill=(155, 176, 255))
+#             #(155, 176, 255))
+#             d = aggdraw.Draw(F)
+#             pen = aggdraw.Pen("white",gridres/800)
+#             for j in np.arange(len(x_star))[m_star>0]:
+#                 X = x_star[j] - star_center
 
-#                if np.random.rand() < 0.1: continue
-#                if galunits: X -= boxsize/2
-                ms = m_star[j]
-                star_size = gridres/400 * (ms/sink_scale)**(1./3)
+# #                if np.random.rand() < 0.1: continue
+# #                if galunits: X -= boxsize/2
+#                 ms = m_star[j]
+#                 star_size = gridres/400 * (ms/sink_scale)**(1./3)
 
-                star_size = max(1,star_size)
+#                 star_size = max(1,star_size)
 
-                p = aggdraw.Brush(StarColor(ms))
-                if galunits: X -= center
-                else: X -= boxsize/2 + center
+#                 p = aggdraw.Brush(StarColor(ms))
+#                 if galunits: X -= center
+#                 else: X -= boxsize/2 + center
 
-                coords = np.concatenate([(X[:2]+r)/(2*r)*gridres-star_size, (X[:2]+r)/(2*r)*gridres+star_size])
-                d.ellipse(coords, pen, p)#, fill=(155, 176, 255))
-            d.flush()
-        F.save(filename)
-        F.close()
+#                 coords = np.concatenate([(X[:2]+r)/(2*r)*gridres-star_size, (X[:2]+r)/(2*r)*gridres+star_size])
+#                 d.ellipse(coords, pen, p)#, fill=(155, 176, 255))
+#             d.flush()
+#         F.save(filename)
+#         F.close()
+# =======
+        if plot_T_map:
+            plt.imsave(Tfilename, Tdata) #f.split("snapshot_")[1].split(".hdf5")[0], map)
+            print(Tfilename)
+            flist = [filename, Tfilename]
+        else:
+            flist = [filename]
+    
+        for fname in flist:
+            F = Image.open(fname)
+            draw = ImageDraw.Draw(F)
+            gridres=res
+            draw.line(((gridres/16, 7*gridres/8), (gridres*5/16, 7*gridres/8)), fill="#FFFFFF", width=6)
+            draw.text((gridres/16, 7*gridres/8 + 5), "%gpc"%(r*500/1000), font=font)
+            draw.text((gridres/16, gridres/24), "%3.2gMyr"%(time*979), font=font)
+            if sink_type in F1.keys():
+#                p = aggdraw.Brush((255, 0,0))
+#                print(len(x_star))
+                #for X in x_star:
+#                    coords = np.concatenate([(X[:2]+r)/(2*r)*gridres-gridres/800, (X[:2]+r)/(2*r)*gridres+gridres/800])
+#                    d.ellipse(coords, pen, p)#, fill=(155, 176, 255))
+                #(155, 176, 255))
+                d = aggdraw.Draw(F)
+                pen = aggdraw.Pen("white",gridres/800)
+                for j in np.arange(len(x_star))[m_star>0]:
+                    X = x_star[j] - star_center
+                    ms = m_star[j]
+                    star_size = gridres/400 * (ms/sink_scale)**(1./3)
+                    star_size = max(1,star_size)
+                    p = aggdraw.Brush(StarColor(ms))
+                    X -= boxsize/2 + center
+                    coords = np.concatenate([(X[:2]+r)/(2*r)*gridres-star_size, (X[:2]+r)/(2*r)*gridres+star_size])
+                    d.ellipse(coords, pen, p)#, fill=(155, 176, 255))
+                d.flush()
+            F.save(fname)
+            F.close()
+#>>>>>>> ad7bbfde067c855cb8feea705009500185d055b3
 
 def MakeMovie():
+    #Plotting surface density
     #Find files
-    filenames=natsorted(glob('SurfaceDensity_????.?.png'))
+    if outputfolder:
+        filenames=natsorted(glob(outputfolder+'/'+'SurfaceDensity_????.?.png'))
+        framefile=outputfolder+'/'+"frames.txt"
+        moviefilename=outputfolder+'/'+movie_name
+    else:
+        filenames=natsorted(glob('SurfaceDensity_????.?.png'))
+        framefile="frames.txt"
+        moviefilename=movie_name
     #Use ffmpeg to create movie
-    file("frames.txt",'w').write('\n'.join(["file '%s'"%f for f in filenames]))
-    os.system("ffmpeg -r " + str(fps) + " -f concat -i frames.txt  -vb 20M -pix_fmt yuv420p  -q:v 0 -vcodec mpeg4 " + movie_name + ".mp4")
+    file(framefile,'w').write('\n'.join(["file '%s'"%f for f in filenames]))
+    os.system("ffmpeg -y -r " + str(fps) + " -f concat -i frames.txt  -vb 20M -pix_fmt yuv420p  -q:v 0 -vcodec mpeg4 " + moviefilename + ".mp4")
     #Erase files, leave movie only
     if only_movie:
         for i in filenames:
             os.remove(i)
-    os.remove("frames.txt")
+    os.remove(framefile)
+    #Plotting temperature
+    if plot_T_map:
+        #Find files
+        if outputfolder:
+            filenames=natsorted(glob(outputfolder+'/'+'Temperature_????.?.png'))
+        else:
+            filenames=natsorted(glob('Temperature_????.?.png'))
+        #Use ffmpeg to create movie
+        file(framefile,'w').write('\n'.join(["file '%s'"%f for f in filenames]))
+        os.system("ffmpeg -y -r " + str(fps) + " -f concat -i frames.txt  -vb 20M -pix_fmt yuv420p  -q:v 0 -vcodec mpeg4 " + moviefilename + "_temp.mp4")
+        #Erase files, leave movie only
+        if only_movie:
+            for i in filenames:
+                os.remove(i)
+        os.remove(framefile)
 
 if nproc>1:
     Parallel(n_jobs=nproc)(delayed(MakeImage)(i) for i in range(len(filenames)))
 else:
     [MakeImage(i) for i in range(len(filenames))]
 
-if len(filenames) > 1: MakeMovie() # only make movie if plotting multiple files
+if (len(filenames) > 1 and (not no_movie) ): 
+    MakeMovie() # only make movie if plotting multiple files
