@@ -31,7 +31,7 @@ Options:
 # python SinkVis.py /panfs/ds08/hopkins/guszejnov/GMC_sim/Tests/200msun/MHD_isoT_2e6/output/snapshot*.hdf5 --np=24 --only_movie --movie_name=200msun_MHD_isoT_2e6
 
 #import meshoid
-from meshoid import GridSurfaceDensity, GridAverage
+from Meshoid import GridSurfaceDensity, GridAverage
 import h5py
 from matplotlib import pyplot as plt
 from PIL import Image, ImageDraw, ImageFont
@@ -165,8 +165,8 @@ def main(arguments):
 
                 h = float(k)/n_interp * h2 + (n_interp-float(k))/n_interp * h1
                 h = np.clip(h,L/res, 1e100)
-                sigma_gas = GridSurfaceDensity(m, x, h, res, L).T
-                Tmap_gas = GridAverage(u, x, h, res, L).T/1.01e4 #should be similar to mass weighted average if partcile masses roughly constant, also converting to K
+                sigma_gas = GridSurfaceDensity(m, x, h, star_center*0, L, res=res).T
+                Tmap_gas = GridAverage(u, x, h,star_center*0, L, res=res).T/1.01e4 #should be similar to mass weighted average if partcile masses roughly constant, also converting to K
             else:
                 sigma_gas = np.zeros((res,res))
                 Tmap_gas = np.zeros((res,res))
