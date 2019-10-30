@@ -72,6 +72,7 @@ def main(arguments):
     L = r*2
     length_unit = (1e3 if galunits else 1.)
     mass_unit = (1e10 if galunits else 1.)
+    pc_to_AU = 206265.0
     #i = 0
     boxsize *= length_unit
     r *= length_unit
@@ -200,9 +201,22 @@ def main(arguments):
                 F = Image.open(fname)
                 draw = ImageDraw.Draw(F)
                 gridres=res
-                draw.line(((gridres/16, 7*gridres/8), (gridres*5/16, 7*gridres/8)), fill="#FFFFFF", width=6)
-                draw.text((gridres/16, 7*gridres/8 + 5), "%gpc"%(r*500/1000), font=font)
-                draw.text((gridres/16, gridres/24), "%3.2gMyr"%(time*979), font=font)
+                if (r>1e-2):
+                    size_scale_text="%gpc"%(r*500/1000)
+                    size_scale_ending=gridres/16+gridres*0.25
+                else:
+                    new_scale_AU=10**np.round(np.log10(r*0.5*pc_to_AU))
+                    size_scale_text="%gAU"%(new_scale_AU)
+                    size_scale_ending=gridres/16+gridres*(new_scale_AU)/(2*r*pc_to_AU)
+                draw.line(((gridres/16, 7*gridres/8), (size_scale_ending, 7*gridres/8)), fill="#FFFFFF", width=6)
+                draw.text((gridres/16, 7*gridres/8 + 5), size_scale_text, font=font)
+                if (time*979>=1e-2):
+                    time_text="%3.2gMyr"%(time*979)
+                elif(time*979>=1e-4):
+                    time_text="%3.2gkyr"%(time*979*1e3)
+                else:
+                    time_text="%3.2gyr"%(time*979*1e6)
+                draw.text((gridres/16, gridres/24), time_text, font=font)
                 if sink_type in F1.keys():
                     d = aggdraw.Draw(F)
                     pen = aggdraw.Pen("white",gridres/800)
