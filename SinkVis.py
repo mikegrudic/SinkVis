@@ -7,8 +7,8 @@ Options:
     -h --help              Show this screen.
     --rmax=<pc>            Maximum radius of plot window; defaults to box size/10.
     --c=<cx,cy,cz>         Coordinates of plot window center relative to box center [default: 0.0,0.0,0.0]
-    --limits=<min,max>     Dynamic range of surface density colormap [default: 10,1e4]
-    --Tlimits=<min,max>    Dynamic range of temperature colormap in K [default: 10,1000]
+    --limits=<min,max>     Dynamic range of surface density colormap [default: 0,0]
+    --Tlimits=<min,max>    Dynamic range of temperature colormap in K [default: 0,0]
     --Tcmap=<name>         Name of colormap to use for temperature [default: inferno]
     --cmap=<name>          Name of colormap to use [default: viridis]
     --interp_fac=<N>       Number of interpolating frames per snapshot [default: 1]
@@ -171,11 +171,19 @@ def main(arguments):
             else:
                 sigma_gas = np.zeros((res,res))
                 Tmap_gas = np.zeros((res,res))
+            #Adjust limits if not set
+            if ((limits[0]==0) or (limits[1]==0)):
+                limits[1]=1.2*np.percentile(sigma_gas,99)
+                limits[0]=0.8*np.min([limits[1]*1e-2,np.max([limits[1]*1e-4,np.percentile(sigma_gas,5)])])
             #Gas surface density
             fgas = (np.log10(sigma_gas)-np.log10(limits[0]))/np.log10(limits[1]/limits[0])
             fgas = np.clip(fgas,0,1)
             data = fgas[:,:,np.newaxis]*plt.get_cmap(cmap)(fgas)[:,:,:3] 
             data = np.clip(data,0,1)
+            #Adjust Tlimits if not set
+            if ((Tlimits[0]==0) or (Tlimits[1]==0)):
+                Tlimits[1]=np.percentile(Tmap_gas,95)
+                Tlimits[0]=np.min([Tlimits[1]*1e-2,np.max([Tlimits[1]*1e-4,np.percentile(Tmap_gas,5)])])
             #Gas temperature map
             fTgas = (np.log10(Tmap_gas)-np.log10(Tlimits[0]))/np.log10(Tlimits[1]/Tlimits[0])
             fTgas = np.clip(fTgas,0,1)
@@ -277,7 +285,7 @@ def main(arguments):
     if (len(filenames) > 1 and (not no_movie) ): 
         MakeMovie() # only make movie if plotting multiple files
 
-def Sinkvis_input(files="snapshot_000.hdf5", rmax=False, center=[0,0,0],limits=[10,1e4],Tlimits=[10,1000],\
+def Sinkvis_input(files="snapshot_000.hdf5", rmax=False, center=[0,0,0],limits=[0,0],Tlimits=[0,0],\
                 interp_fac=1, np=1,res=500, only_movie=False, fps=20, movie_name="sink_movie",\
                 center_on_star=False, Tcmap="inferno", cmap="viridis", no_movie=True, outputfolder="output",\
                 plot_T_map=True, sink_scale=0.1, sink_type=5, galunits=False,name_addition=""):
