@@ -166,6 +166,7 @@ def main(arguments):
             if ((limits[0]==0) or (limits[1]==0)):
                 limits[1]=1.2*np.percentile(sigma_gas,99)
                 limits[0]=0.8*np.min([limits[1]*1e-2,np.max([limits[1]*1e-4,np.percentile(sigma_gas,5)])])
+                print("Using surface density limits of %g and %g"%(limits[0],limits[1]))
             #Gas surface density
             fgas = (np.log10(sigma_gas)-np.log10(limits[0]))/np.log10(limits[1]/limits[0])
             fgas = np.clip(fgas,0,1)
@@ -175,6 +176,7 @@ def main(arguments):
             if ((Tlimits[0]==0) or (Tlimits[1]==0)):
                 Tlimits[1]=np.percentile(Tmap_gas,95)
                 Tlimits[0]=np.min([Tlimits[1]*1e-2,np.max([Tlimits[1]*1e-4,np.percentile(Tmap_gas,5)])])
+                print("Using temperature limits of %g K and %g K"%(Tlimits[0],Tlimits[1]))
             #Gas temperature map
             fTgas = (np.log10(Tmap_gas)-np.log10(Tlimits[0]))/np.log10(Tlimits[1]/Tlimits[0])
             fTgas = np.clip(fTgas,0,1)
