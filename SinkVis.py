@@ -6,6 +6,7 @@ SinkVis.py <files> ... [options]
 Options:
     -h --help              Show this screen.
     --rmax=<pc>            Maximum radius of plot window; defaults to box size/10.
+    --full_box             Sets the plot to the entire box, overrides rmax
     --c=<cx,cy,cz>         Coordinates of plot window center relative to box center [default: 0.0,0.0,0.0]
     --limits=<min,max>     Dynamic range of surface density colormap [default: 0,0]
     --Tlimits=<min,max>    Dynamic range of temperature colormap in K [default: 0,0]
@@ -43,13 +44,27 @@ from docopt import docopt
 from glob import glob
 import os
 from sys import argv
+from load_from_snapshot import load_from_snapshot
+import re
 
 
 
 def main(arguments):
     filenames = natsorted(arguments["<files>"])
-    boxsize = h5py.File(filenames[0], 'r')["Header"].attrs["BoxSize"]
-    r = float(arguments["--rmax"]) if arguments["--rmax"] else boxsize/10
+    if os.path.isdir(filenames[0]):
+        namestring="snapdir"
+    else:
+        namestring="snapshot"
+    file_numbers = [int(re.search(namestring+'_\d*', f).group(0).replace(namestring+'_','')) for f in filenames]
+    datafolder=(f.split(namestring+"_")[0])
+    boxsize=load_from_snapshot("BoxSize",0,datafolder,file_numbers[0])
+    full_box_flag = arguments["--full_box"]
+    if full_box_flag:
+        r = boxsize/2.0
+    elif arguments["--rmax"]:
+        r = float(arguments["--rmax"])
+    else:
+        r = boxsize/10
     name_addition = arguments["--name_addition"] if arguments["--name_addition"] else ""
     center = np.array([float(c) for c in arguments["--c"].split(',')])
     limits = np.array([float(c) for c in arguments["--limits"].split(',')])
@@ -66,7 +81,8 @@ def main(arguments):
     fps = float(arguments["--fps"])
     movie_name = arguments["--movie_name"]
     outputfolder = arguments["--outputfolder"]
-    sink_type = "PartType" + arguments["--sink_type"]
+    sink_type = int(arguments["--sink_type"])
+    sink_type_text="PartType" + str(sink_type)
     sink_scale = float(arguments["--sink_scale"])
     center_on_star = arguments["--center_on_star"]
     L = r*2
@@ -80,12 +96,6 @@ def main(arguments):
 
     font = ImageFont.truetype("LiberationSans-Regular.ttf", res//12)
 
-    #image_paths = []
-
-    file_numbers = [int(f.split("snapshot_")[1].split(".hdf5")[0]) for f in filenames]
-
-    #filedict = dict(zip(file_numbers, filenames))
-
     def TransformCoords(x, angle):
         return np.c_[x[:,0]*np.cos(angle) + x[:,1]*np.sin(angle), -x[:,0]*np.sin(angle) + x[:,1]*np.cos(angle), x[:,2]]
 
@@ -96,69 +106,50 @@ def main(arguments):
 
     def MakeImage(i):
     #    print(i)
-        F1 = h5py.File(filenames[i],'r')
-        F2 = (h5py.File(filenames[min(i+1,len(filenames)-1)],'r') if n_interp>1 else F1)
-
-        #t1, t2 = F1["Header"].attrs["Time"], F2["Header"].attrs["Time"]
-
-        if not sink_type in F1.keys() and center_on_star: return
-        
-        if "PartType0" in F1.keys():
-            id1, id2 = np.array(F1["PartType0"]["ParticleIDs"]), np.array(F2["PartType0"]["ParticleIDs"])
+        snapnum1=file_numbers[i]
+        snapnum2=(file_numbers[min(i+1,len(filenames)-1)] if n_interp>1 else snapnum1)
+        #keylist=load_from_snapshot("keys",0,datafolder,snapnum1)
+        numpart_total=load_from_snapshot("NumPart_Total",0,datafolder,snapnum1)
+        if not numpart_total[sink_type] and center_on_star: return
+        if numpart_total[0]:
+            id1, id2 = np.array(load_from_snapshot("ParticleIDs",0,datafolder,snapnum1)), np.array(load_from_snapshot("ParticleIDs",0,datafolder,snapnum2))
             unique, counts = np.unique(id2, return_counts=True)
             doubles = unique[counts>1]
             id2[np.in1d(id2,doubles)]=-1
-            x1, x2 = length_unit*np.array(F1["PartType0"]["Coordinates"])[id1.argsort()], length_unit*np.array(F2["PartType0"]["Coordinates"])[id2.argsort()]
+            x1, x2 = length_unit*np.array(load_from_snapshot("Coordinates",0,datafolder,snapnum1))[id1.argsort()], length_unit*np.array(load_from_snapshot("Coordinates",0,datafolder,snapnum2))[id2.argsort()]
             if not galunits:
                 x1 -= boxsize/2 + center
                 x2 -= boxsize/2 + center
-            u1, u2 = np.array(F1["PartType0"]["InternalEnergy"])[id1.argsort()], np.array(F2["PartType0"]["InternalEnergy"])[id2.argsort()]
-            h1, h2 = np.array(F1["PartType0"]["SmoothingLength"])[id1.argsort()] * length_unit, np.array(F2["PartType0"]["SmoothingLength"])[id2.argsort()] * length_unit
-            m1, m2 = np.array(F1["PartType0"]["Masses"])[id1.argsort()] * mass_unit, np.array(F2["PartType0"]["Masses"])[id2.argsort()] * mass_unit
-
+            u1, u2 = np.array(load_from_snapshot("InternalEnergy",0,datafolder,snapnum1))[id1.argsort()], np.array(load_from_snapshot("InternalEnergy",0,datafolder,snapnum2))[id2.argsort()]
+            h1, h2 = length_unit*np.array(load_from_snapshot("SmoothingLength",0,datafolder,snapnum1))[id1.argsort()], length_unit*np.array(load_from_snapshot("SmoothingLength",0,datafolder,snapnum2))[id2.argsort()]
+            m1, m2 = mass_unit*np.array(load_from_snapshot("Masses",0,datafolder,snapnum1))[id1.argsort()], mass_unit*np.array(load_from_snapshot("Masses",0,datafolder,snapnum2))[id2.argsort()]
             # take only the particles that are in both snaps
-
             common_ids = np.intersect1d(id1,id2)
             idx1 = np.in1d(np.sort(id1),common_ids)
             idx2 = np.in1d(np.sort(id2),common_ids)
-
-
-            x1 = x1[idx1]
-            u1 = u1[idx1]
-            h1 = h1[idx1]
-            m1 = m1[idx1]
-            x2 = x2[idx2]
-            u2 = u2[idx2]
-            h2 = h2[idx2]
-            m2 = m2[idx2]
+            x1 = x1[idx1]; u1 = u1[idx1]; h1 = h1[idx1]; m1 = m1[idx1]
+            x2 = x2[idx2]; u2 = u2[idx2]; h2 = h2[idx2]; m2 = m2[idx2]
             m = m2
-         
-        if sink_type in F1.keys():
-            id1s, id2s = np.array(F1[sink_type]["ParticleIDs"]), np.array(F2[sink_type]["ParticleIDs"])
+        if numpart_total[sink_type]:
+            id1s, id2s = np.array(load_from_snapshot("ParticleIDs",sink_type,datafolder,snapnum1)), np.array(load_from_snapshot("ParticleIDs",sink_type,datafolder,snapnum2))
             unique, counts = np.unique(id2s, return_counts=True)
             doubles = unique[counts>1]
             id2s[np.in1d(id2s,doubles)]=-1
-
-            x1s, x2s = np.array(F1[sink_type]["Coordinates"])[id1s.argsort()] * length_unit, np.array(F2[sink_type]["Coordinates"])[id2s.argsort()] * length_unit
-            m1s, m2s = np.array(F1[sink_type]["Masses"])[id1s.argsort()] * mass_unit, np.array(F2[sink_type]["Masses"])[id2s.argsort()] * mass_unit
+            x1s, x2s = length_unit*np.array(load_from_snapshot("Coordinates",sink_type,datafolder,snapnum1))[id1s.argsort()], length_unit*np.array(load_from_snapshot("Coordinates",sink_type,datafolder,snapnum2))[id2s.argsort()]
+            m1s, m2s = mass_unit*np.array(load_from_snapshot("Masses",sink_type,datafolder,snapnum1))[id1s.argsort()], mass_unit*np.array(load_from_snapshot("Masses",sink_type,datafolder,snapnum2))[id2s.argsort()]
             # take only the particles that are in both snaps
-
             common_ids = np.intersect1d(id1s,id2s)
             idx1 = np.in1d(np.sort(id1s),common_ids)
             idx2 = np.in1d(np.sort(id2s),common_ids)
-
-            x1s = x1s[idx1]
-            m1s = m1s[idx1]
-            x2s = x2s[idx2]
-            m2s = m2s[idx2]
+            x1s = x1s[idx1]; m1s = m1s[idx1]
+            x2s = x2s[idx2]; m2s = m2s[idx2]
             m_star = m2s
-
-        time = F1["Header"].attrs["Time"]
+        time = load_from_snapshot("Time",0,datafolder,snapnum1)
         for k in range(n_interp):
-            if sink_type in F1.keys():
+            if numpart_total[sink_type]:
                 x_star = float(k)/n_interp * x2s + (n_interp-float(k))/n_interp * x1s
-            star_center =  (x_star[m_star.argmax()]-boxsize/2 if (center_on_star and sink_type in F1.keys()) else np.zeros(3)) 
-            if "PartType0" in F1.keys():
+            star_center =  (x_star[m_star.argmax()]-boxsize/2 if (center_on_star and numpart_total[sink_type]) else np.zeros(3)) 
+            if numpart_total[0]:
                 x = float(k)/n_interp * x2 + (n_interp-float(k))/n_interp * x1 - star_center
                 
                 logu = float(k)/n_interp * np.log10(u2) + (n_interp-float(k))/n_interp * np.log10(u1)
@@ -210,11 +201,11 @@ def main(arguments):
                 draw = ImageDraw.Draw(F)
                 gridres=res
                 if (r>1e-2):
-                    size_scale_text="%gpc"%(r*500/1000)
+                    size_scale_text="%3.2gpc"%(r*500/1000)
                     size_scale_ending=gridres/16+gridres*0.25
                 else:
                     new_scale_AU=10**np.round(np.log10(r*0.5*pc_to_AU))
-                    size_scale_text="%gAU"%(new_scale_AU)
+                    size_scale_text="%3.2gAU"%(new_scale_AU)
                     size_scale_ending=gridres/16+gridres*(new_scale_AU)/(2*r*pc_to_AU)
                 draw.line(((gridres/16, 7*gridres/8), (size_scale_ending, 7*gridres/8)), fill="#FFFFFF", width=6)
                 draw.text((gridres/16, 7*gridres/8 + 5), size_scale_text, font=font)
@@ -225,7 +216,7 @@ def main(arguments):
                 else:
                     time_text="%3.2gyr"%(time*979*1e6)
                 draw.text((gridres/16, gridres/24), time_text, font=font)
-                if sink_type in F1.keys():
+                if numpart_total[sink_type]:
                     d = aggdraw.Draw(F)
                     pen = aggdraw.Pen("white",gridres/800)
                     for j in np.arange(len(x_star))[m_star>0]:
@@ -285,7 +276,7 @@ def main(arguments):
     if (len(filenames) > 1 and (not no_movie) ): 
         MakeMovie() # only make movie if plotting multiple files
 
-def Sinkvis_input(files="snapshot_000.hdf5", rmax=False, center=[0,0,0],limits=[0,0],Tlimits=[0,0],\
+def Sinkvis_input(files="snapshot_000.hdf5", rmax=False, full_box=False, center=[0,0,0],limits=[0,0],Tlimits=[0,0],\
                 interp_fac=1, np=1,res=500, only_movie=False, fps=20, movie_name="sink_movie",\
                 center_on_star=False, Tcmap="inferno", cmap="viridis", no_movie=True, outputfolder="output",\
                 plot_T_map=True, sink_scale=0.1, sink_type=5, galunits=False,name_addition=""):
@@ -294,6 +285,7 @@ def Sinkvis_input(files="snapshot_000.hdf5", rmax=False, center=[0,0,0],limits=[
     arguments={
         "<files>": files,
         "--rmax": rmax,
+        "--full_box": full_box,
         "--c": str(center[0])+","+str(center[1])+","+str(center[2]),
         "--limits": str(limits[0])+","+str(limits[1]),
         "--Tlimits": str(Tlimits[0])+","+str(Tlimits[1]),
