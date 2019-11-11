@@ -56,7 +56,7 @@ def main(arguments):
     else:
         namestring="snapshot"
     file_numbers = [int(re.search(namestring+'_\d*', f).group(0).replace(namestring+'_','')) for f in filenames]
-    datafolder=(f.split(namestring+"_")[0])
+    datafolder=(filenames[0].split(namestring+"_")[0])
     boxsize=load_from_snapshot("BoxSize",0,datafolder,file_numbers[0])
     full_box_flag = arguments["--full_box"]
     if full_box_flag:
