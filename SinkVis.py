@@ -170,7 +170,7 @@ def main(arguments):
             #Gas surface density
             fgas = (np.log10(sigma_gas)-np.log10(limits[0]))/np.log10(limits[1]/limits[0])
             fgas = np.clip(fgas,0,1)
-            data = fgas[:,:,np.newaxis]*plt.get_cmap(cmap)(fgas)[:,:,:3] 
+            data = plt.get_cmap(cmap)(fgas)[:,:,:3] 
             data = np.clip(data,0,1)
             #Adjust Tlimits if not set
             if ((Tlimits[0]==0) or (Tlimits[1]==0)):
