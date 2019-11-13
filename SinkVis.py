@@ -69,6 +69,24 @@ def MakeImage(i):
     #keylist=load_from_snapshot("keys",0,datafolder,snapnum1)
     numpart_total=load_from_snapshot("NumPart_Total",0,datafolder,snapnum1)
     if not numpart_total[sink_type] and (center_on_star or (center_on_ID>0)): return
+    if numpart_total[sink_type]:
+        id1s, id2s = np.array(load_from_snapshot("ParticleIDs",sink_type,datafolder,snapnum1)), np.array(load_from_snapshot("ParticleIDs",sink_type,datafolder,snapnum2))
+        unique, counts = np.unique(id2s, return_counts=True)
+        doubles = unique[counts>1]
+        id2s[np.in1d(id2s,doubles)]=-1
+        x1s, x2s = length_unit*np.array(load_from_snapshot("Coordinates",sink_type,datafolder,snapnum1))[id1s.argsort()], length_unit*np.array(load_from_snapshot("Coordinates",sink_type,datafolder,snapnum2))[id2s.argsort()]
+        m1s, m2s = mass_unit*np.array(load_from_snapshot("Masses",sink_type,datafolder,snapnum1))[id1s.argsort()], mass_unit*np.array(load_from_snapshot("Masses",sink_type,datafolder,snapnum2))[id2s.argsort()]
+        # take only the particles that are in both snaps
+        common_sink_ids = np.intersect1d(id1s,id2s)
+        idx1 = np.in1d(np.sort(id1s),common_sink_ids)
+        idx2 = np.in1d(np.sort(id2s),common_sink_ids)
+        x1s = x1s[idx1]; m1s = m1s[idx1]
+        x2s = x2s[idx2]; m2s = m2s[idx2]
+        m_star = m2s
+        if ((center_on_ID>0) and (not np.any(common_sink_ids==center_on_ID)) ): 
+            print("Sink ID %d not present in "%(center_on_ID)+filenames[i])
+            print("Sink IDs present: ",np.int64(common_sink_ids))
+            return
     if numpart_total[0]:
         id1, id2 = np.array(load_from_snapshot("ParticleIDs",0,datafolder,snapnum1)), np.array(load_from_snapshot("ParticleIDs",0,datafolder,snapnum2))
         unique, counts = np.unique(id2, return_counts=True)
@@ -88,31 +106,15 @@ def MakeImage(i):
         x1 = x1[idx1]; u1 = u1[idx1]; h1 = h1[idx1]; m1 = m1[idx1]
         x2 = x2[idx2]; u2 = u2[idx2]; h2 = h2[idx2]; m2 = m2[idx2]
         m = m2
-    if numpart_total[sink_type]:
-        id1s, id2s = np.array(load_from_snapshot("ParticleIDs",sink_type,datafolder,snapnum1)), np.array(load_from_snapshot("ParticleIDs",sink_type,datafolder,snapnum2))
-        unique, counts = np.unique(id2s, return_counts=True)
-        doubles = unique[counts>1]
-        id2s[np.in1d(id2s,doubles)]=-1
-        x1s, x2s = length_unit*np.array(load_from_snapshot("Coordinates",sink_type,datafolder,snapnum1))[id1s.argsort()], length_unit*np.array(load_from_snapshot("Coordinates",sink_type,datafolder,snapnum2))[id2s.argsort()]
-        m1s, m2s = mass_unit*np.array(load_from_snapshot("Masses",sink_type,datafolder,snapnum1))[id1s.argsort()], mass_unit*np.array(load_from_snapshot("Masses",sink_type,datafolder,snapnum2))[id2s.argsort()]
-        # take only the particles that are in both snaps
-        common_ids = np.intersect1d(id1s,id2s)
-        idx1 = np.in1d(np.sort(id1s),common_ids)
-        idx2 = np.in1d(np.sort(id2s),common_ids)
-        x1s = x1s[idx1]; m1s = m1s[idx1]
-        x2s = x2s[idx2]; m2s = m2s[idx2]
-        m_star = m2s
-        if ((center_on_ID>0) and (not np.any(common_ids==center_on_ID)) ): 
-            print("Sink ID %d not present in "%(center_on_ID)+filenames[i])
-            print("Sink IDs present: ",common_ids)
-            return
+        # unload stuff to save memory
+        idx1=0; idx2=0; id1=0; id2=0;
     time = load_from_snapshot("Time",0,datafolder,snapnum1)
     for k in range(n_interp):
         if numpart_total[sink_type]:
             x_star = float(k)/n_interp * x2s + (n_interp-float(k))/n_interp * x1s
         star_center =  (x_star[m_star.argmax()]-boxsize/2 if ((center_on_star or (center_on_ID>0)) and numpart_total[sink_type]) else np.zeros(3))
         if center_on_ID:
-            star_center = np.squeeze(x_star[common_ids==center_on_ID]-boxsize/2)
+            star_center = np.squeeze(x_star[common_sink_ids==center_on_ID]-boxsize/2)
         if numpart_total[0]:
             x = float(k)/n_interp * x2 + (n_interp-float(k))/n_interp * x1 - star_center
 
