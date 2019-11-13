@@ -102,7 +102,10 @@ def MakeImage(i):
         x1s = x1s[idx1]; m1s = m1s[idx1]
         x2s = x2s[idx2]; m2s = m2s[idx2]
         m_star = m2s
-        if ((center_on_ID>0) and (not np.any(common_ids==center_on_ID)) ): return
+        if ((center_on_ID>0) and (not np.any(common_ids==center_on_ID)) ): 
+            print("Sink ID %d not present in "%(center_on_ID)+filenames[i])
+            print("Sink IDs present: ",common_ids)
+            return
     time = load_from_snapshot("Time",0,datafolder,snapnum1)
     for k in range(n_interp):
         if numpart_total[sink_type]:
