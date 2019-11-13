@@ -22,6 +22,7 @@ Options:
     --sink_type=<N>        Particle type of sinks [default: 5]
     --sink_scale=<msun>    Sink particle mass such that apparent sink size is 1 pixel [default: 0.1]
     --center_on_star       Center image on the most massive sink particle
+    --center_on_ID=<ID>    Center image on sink particle with specific ID, does not center if zero [default: 0]
     --galunits             Use default GADGET units
     --plot_T_map           Plots both surface density and average temperature maps
     --outputfolder=<name>  Specifies the folder to save the images and movies to
@@ -67,7 +68,7 @@ def MakeImage(i):
     snapnum2=(file_numbers[min(i+1,len(filenames)-1)] if n_interp>1 else snapnum1)
     #keylist=load_from_snapshot("keys",0,datafolder,snapnum1)
     numpart_total=load_from_snapshot("NumPart_Total",0,datafolder,snapnum1)
-    if not numpart_total[sink_type] and center_on_star: return
+    if not numpart_total[sink_type] and (center_on_star or (center_on_ID>0)): return
     if numpart_total[0]:
         id1, id2 = np.array(load_from_snapshot("ParticleIDs",0,datafolder,snapnum1)), np.array(load_from_snapshot("ParticleIDs",0,datafolder,snapnum2))
         unique, counts = np.unique(id2, return_counts=True)
@@ -101,11 +102,14 @@ def MakeImage(i):
         x1s = x1s[idx1]; m1s = m1s[idx1]
         x2s = x2s[idx2]; m2s = m2s[idx2]
         m_star = m2s
+        if ((center_on_ID>0) and (not np.any(common_ids==center_on_ID)) ): return
     time = load_from_snapshot("Time",0,datafolder,snapnum1)
     for k in range(n_interp):
         if numpart_total[sink_type]:
             x_star = float(k)/n_interp * x2s + (n_interp-float(k))/n_interp * x1s
-        star_center =  (x_star[m_star.argmax()]-boxsize/2 if (center_on_star and numpart_total[sink_type]) else np.zeros(3)) 
+        star_center =  (x_star[m_star.argmax()]-boxsize/2 if ((center_on_star or (center_on_ID>0)) and numpart_total[sink_type]) else np.zeros(3))
+        if center_on_ID:
+            star_center = np.squeeze(x_star[common_ids==center_on_ID]-boxsize/2)
         if numpart_total[0]:
             x = float(k)/n_interp * x2 + (n_interp-float(k))/n_interp * x1 - star_center
 
@@ -203,7 +207,7 @@ def MakeMovie():
         framefile="frames.txt"
         moviefilename=movie_name
     #Use ffmpeg to create movie
-    open(framefile,'w').write('\n'.join(["file '%s'"%f for f in filenames]))
+    file(framefile,'w').write('\n'.join(["file '%s'"%f for f in filenames]))
     os.system("ffmpeg -y -r " + str(fps) + " -f concat -i frames.txt  -vb 20M -pix_fmt yuv420p  -q:v 0 -vcodec mpeg4 " + moviefilename + ".mp4")
     #Erase files, leave movie only
     if only_movie:
@@ -230,7 +234,7 @@ def MakeMovie():
 def Sinkvis_input(files="snapshot_000.hdf5", rmax=False, full_box=False, center=[0,0,0],limits=[0,0],Tlimits=[0,0],\
                 interp_fac=1, np=1,res=500, only_movie=False, fps=20, movie_name="sink_movie",\
                 center_on_star=False, Tcmap="inferno", cmap="viridis", no_movie=True, outputfolder="output",\
-                plot_T_map=True, sink_scale=0.1, sink_type=5, galunits=False,name_addition=""):
+                plot_T_map=True, sink_scale=0.1, sink_type=5, galunits=False,name_addition="",center_on_ID=0):
     if (not isinstance(files, list)):
         files=[files]
     arguments={
@@ -250,6 +254,7 @@ def Sinkvis_input(files="snapshot_000.hdf5", rmax=False, full_box=False, center=
         "--sink_scale": sink_scale,
         "--galunits": galunits,
         "--center_on_star": center_on_star,
+        "--center_on_ID": center_on_ID,
         "--Tcmap": Tcmap,
         "--cmap": cmap,
         "--no_movie": no_movie,
@@ -299,6 +304,7 @@ if __name__ == "__main__":
     sink_type_text="PartType" + str(sink_type)
     sink_scale = float(arguments["--sink_scale"])
     center_on_star = arguments["--center_on_star"]
+    center_on_ID = int(arguments["--center_on_ID"])
     L = r*2
     length_unit = (1e3 if galunits else 1.)
     mass_unit = (1e10 if galunits else 1.)
