@@ -130,6 +130,8 @@ def MakeImage(i):
         if not os.path.exists(pickle_filename):
             if numpart_total[sink_type]:
                 x_star = float(k)/n_interp * x2s + (n_interp-float(k))/n_interp * x1s
+            else:
+                x_star = []; m_star = [];
             star_center =  (x_star[m_star.argmax()]-boxsize/2 if ((center_on_star or (center_on_ID>0)) and numpart_total[sink_type]) else np.zeros(3))
             if center_on_ID:
                 star_center = np.squeeze(x_star[common_sink_ids==center_on_ID]-boxsize/2)
@@ -370,6 +372,9 @@ if __name__ == "__main__":
     L *= length_unit
 
     font = ImageFont.truetype("LiberationSans-Regular.ttf", res//12) 
+    
+    if not os.path.exists(outputfolder):
+        os.mkdir(outputfolder)
 
     if nproc>1:
         Pool(nproc).map(MakeImage, (f for f in range(len(filenames))))
