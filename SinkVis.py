@@ -22,11 +22,15 @@ Options:
     --sink_type=<N>        Particle type of sinks [default: 5]
     --sink_scale=<msun>    Sink particle mass such that apparent sink size is 1 pixel [default: 0.1]
     --center_on_star       Center image on the most massive sink particle
+    --center_on_densest    Center image on the sink near the densest gas
     --center_on_ID=<ID>    Center image on sink particle with specific ID, does not center if zero [default: 0]
     --galunits             Use default GADGET units
     --plot_T_map           Plots both surface density and average temperature maps
     --outputfolder=<name>  Specifies the folder to save the images and movies to
     --name_addition=<name> Extra string to be put after the name of the ouput files, defaults to empty string       
+    --no_pickle            Flag, if set no pickle file is created to make replots faster
+    --no_timestamp         Flag, if set no timestamp will be put on the images
+    --no_size_scale        Flag, if set no size scale will be put on the images
 """
 
 #Example
@@ -34,6 +38,7 @@ Options:
 
 #import meshoid
 from Meshoid import GridSurfaceDensity, GridAverage
+import Meshoid
 import h5py
 from matplotlib import pyplot as plt
 from PIL import Image, ImageDraw, ImageFont
@@ -50,10 +55,60 @@ from load_from_snapshot import load_from_snapshot
 import re
 import pickle
 
-
-
-
-
+def find_sink_in_densest_gas(snapnum):
+    #Find the sink in snapshot near the densest gas and return its ID, otherwise return 0
+    #Check if we have looked for this one before
+    filename = "Sinkvis_snap%d_sink_in_densest_gas.txt"%(snapnum)
+    if outputfolder:
+        filename=outputfolder+'/'+filename
+    if not os.path.exists(filename):
+        print("Looking for the sink particle with the densest gas around it...")
+        numpart_total=load_from_snapshot("NumPart_Total",0,datafolder,snapnum)
+        if (numpart_total[0] and numpart_total[sink_type]):
+            #load_from_snapshot("keys",0,datafolder,snapnum)
+            #load_from_snapshot("keys",5,datafolder,snapnum)
+            id = np.array(load_from_snapshot("ParticleIDs",0,datafolder,snapnum))
+            ids = np.array(load_from_snapshot("ParticleIDs",sink_type,datafolder,snapnum))
+            Ngas = len(id); Nsink = len(ids); Ntot = Ngas+Nsink
+            xg = length_unit*np.array(load_from_snapshot("Coordinates",0,datafolder,snapnum))
+            xs = length_unit*np.array(load_from_snapshot("Coordinates",sink_type,datafolder,snapnum))
+            x = np.append(xg, xs, axis=0); xg=0;
+            hg = length_unit*np.array(load_from_snapshot("SmoothingLength",0,datafolder,snapnum))
+            hs = length_unit*np.array(load_from_snapshot("SinkRadius",sink_type,datafolder,snapnum))
+            h = np.append(hg, hs); hg=0;
+            mg = mass_unit*np.array(load_from_snapshot("Masses",0,datafolder,snapnum))
+            ms = mass_unit*np.array(load_from_snapshot("Masses",sink_type,datafolder,snapnum))
+            m = np.append(mg, ms); mg=0;
+            #Build meshoid class
+            Md = Meshoid.Meshoid(x, m=m, hsml=h, boxsize=boxsize)
+            #Find nearest neighbors
+            print("Building neighbor list...")
+            Ngblist = Md.NearestNeighbors()
+            #Let's go over all particles that are near sinks
+            sink_neighbors = (Ngblist[Ngas:,:]).flatten()
+            sink_neighbors = sink_neighbors[sink_neighbors<Ngas] #remove neighboring sinks
+            sink_neighbors_density = mass_unit/(length_unit**3)*np.array(load_from_snapshot("Density",0,datafolder,snapnum))[sink_neighbors]
+            gas_ind = sink_neighbors[np.argmax(sink_neighbors_density)]
+            gas_dens = np.max(sink_neighbors_density)
+            #Find which sinks this gas is around
+            ind_loc=np.argwhere(Ngblist[Ngas:,:]==gas_ind)
+            sink_id_list = np.array([ind_loc[i][0] for i in range(len(ind_loc))])
+            sink_mass_list = ms[sink_id_list]
+            #pick mos massive sink
+            sink_mass = np.max(sink_mass_list)
+            sink_id = ids[sink_id_list[np.argmax(sink_mass_list)]]
+            print("Sink particle with densest gas is ID %d with mass %g and %g neighboring gas density"%(sink_id,sink_mass,gas_dens))
+        else:
+            print("No gas or sinks present")
+            sink_id = 0; sink_mass = 0; gas_dens = 0;
+        np.savetxt(filename, np.array([sink_id,sink_mass,gas_dens]))
+    else:
+        print("Loading data from "+filename)
+        temp = np.loadtxt(filename)
+        sink_id = np.int32(temp[0]); sink_mass = temp[1]; gas_dens = temp[2]; 
+        print("Sink particle with densest gas is ID %d with mass %g and %g neighboring gas density"%(sink_id,sink_mass,gas_dens))
+    return sink_id
+            
 
 def TransformCoords(x, angle):
     return np.c_[x[:,0]*np.cos(angle) + x[:,1]*np.sin(angle), -x[:,0]*np.sin(angle) + x[:,1]*np.cos(angle), x[:,2]]
@@ -70,10 +125,13 @@ def MakeImage(i):
 #    print(i)
     snapnum1=file_numbers[i]
     snapnum2=(file_numbers[min(i+1,len(filenames)-1)] if n_interp>1 else snapnum1)
+    if center_on_densest:
+        center_on_ID = find_sink_in_densest_gas(snapnum1)
     pickle_filename = "Sinkvis_snap%d_%d_%d_r%g_res%d_c%g_%g_%g_%d_%d.pickle"%(snapnum1,0,n_interp,r,res,center[0],center[1],center[2],center_on_star,center_on_ID)
     if outputfolder:
         pickle_filename=outputfolder+'/'+pickle_filename
     if not os.path.exists(pickle_filename):
+        print("Loading snapshot data from "+filenames[i])
         #We don't have the data, must read it from snapshot
         #keylist=load_from_snapshot("keys",0,datafolder,snapnum1)
         numpart_total=load_from_snapshot("NumPart_Total",0,datafolder,snapnum1)
@@ -136,7 +194,15 @@ def MakeImage(i):
             if center_on_ID:
                 star_center = np.squeeze(x_star[common_sink_ids==center_on_ID]-boxsize/2)
             if numpart_total[0]:
-                x = float(k)/n_interp * x2 + (n_interp-float(k))/n_interp * x1 - star_center
+                x = float(k)/n_interp * x2 + (n_interp-float(k))/n_interp * x1
+                #correct for periodic box
+                jump_ind1 = (x2 - x1) > (boxsize/2) #assuming no particle travels more than half of the the box in a single snapshot
+                jump_ind2 = (x1 - x2) > (boxsize/2)
+                if np.any(jump_ind1):
+                    x[jump_ind1] = (float(k)/n_interp * (x2[jump_ind1]-boxsize) + (n_interp-float(k))/n_interp * x1[jump_ind1])%boxsize 
+                if np.any(jump_ind2):
+                    x[jump_ind2] = (float(k)/n_interp * x2[jump_ind2] + (n_interp-float(k))/n_interp * (x1[jump_ind2]-boxsize))%boxsize 
+                x -= star_center
 
                 logu = float(k)/n_interp * np.log10(u2) + (n_interp-float(k))/n_interp * np.log10(u1)
                 u = 10**logu
@@ -151,11 +217,14 @@ def MakeImage(i):
                 Tmap_gas = np.zeros((res,res))
                 logTmap_gas = np.zeros((res,res))
             #Save data
-            outfile = open(pickle_filename, 'wb') 
-            pickle.dump([x_star,m_star,sigma_gas,Tmap_gas,logTmap_gas,time,numpart_total, star_center], outfile)
-            outfile.close()
+            if not no_pickle:
+                print("Saving "+pickle_filename)
+                outfile = open(pickle_filename, 'wb') 
+                pickle.dump([x_star,m_star,sigma_gas,Tmap_gas,logTmap_gas,time,numpart_total, star_center], outfile)
+                outfile.close()
         else:
             #Load data from pickle file
+            print("Loading "+pickle_filename)
             infile = open(pickle_filename, 'rb') 
             temp = pickle.load(infile)
             infile.close()
@@ -216,22 +285,24 @@ def MakeImage(i):
             F = Image.open(fname)
             draw = ImageDraw.Draw(F)
             gridres=res
-            if (r>1e-2):
-                size_scale_text="%3.2gpc"%(r*500/1000)
-                size_scale_ending=gridres/16+gridres*0.25
-            else:
-                new_scale_AU=10**np.round(np.log10(r*0.5*pc_to_AU))
-                size_scale_text="%3.2gAU"%(new_scale_AU)
-                size_scale_ending=gridres/16+gridres*(new_scale_AU)/(2*r*pc_to_AU)
-            draw.line(((gridres/16, 7*gridres/8), (size_scale_ending, 7*gridres/8)), fill="#FFFFFF", width=6)
-            draw.text((gridres/16, 7*gridres/8 + 5), size_scale_text, font=font)
-            if (time*979>=1e-2):
-                time_text="%3.2gMyr"%(time*979)
-            elif(time*979>=1e-4):
-                time_text="%3.2gkyr"%(time*979*1e3)
-            else:
-                time_text="%3.2gyr"%(time*979*1e6)
-            draw.text((gridres/16, gridres/24), time_text, font=font)
+            if not no_size_scale:
+                if (r>1e-2):
+                    size_scale_text="%3.2gpc"%(r*500/1000)
+                    size_scale_ending=gridres/16+gridres*0.25
+                else:
+                    new_scale_AU=10**np.round(np.log10(r*0.5*pc_to_AU))
+                    size_scale_text="%3.2gAU"%(new_scale_AU)
+                    size_scale_ending=gridres/16+gridres*(new_scale_AU)/(2*r*pc_to_AU)
+                draw.line(((gridres/16, 7*gridres/8), (size_scale_ending, 7*gridres/8)), fill="#FFFFFF", width=6)
+                draw.text((gridres/16, 7*gridres/8 + 5), size_scale_text, font=font)
+            if not no_timestamp:
+                if (time*979>=1e-2):
+                    time_text="%3.2gMyr"%(time*979)
+                elif(time*979>=1e-4):
+                    time_text="%3.2gkyr"%(time*979*1e3)
+                else:
+                    time_text="%3.2gyr"%(time*979*1e6)
+                draw.text((gridres/16, gridres/24), time_text, font=font)
             if numpart_total[sink_type]:
                 d = aggdraw.Draw(F)
                 pen = aggdraw.Pen("white",gridres/800)
@@ -287,7 +358,8 @@ def MakeMovie():
 def Sinkvis_input(files="snapshot_000.hdf5", rmax=False, full_box=False, center=[0,0,0],limits=[0,0],Tlimits=[0,0],\
                 interp_fac=1, np=1,res=500, only_movie=False, fps=20, movie_name="sink_movie",\
                 center_on_star=0, Tcmap="inferno", cmap="viridis", no_movie=True, outputfolder="output",\
-                plot_T_map=True, sink_scale=0.1, sink_type=5, galunits=False,name_addition="",center_on_ID=0):
+                plot_T_map=True, sink_scale=0.1, sink_type=5, galunits=False,name_addition="",center_on_ID=0,no_pickle=False, no_timestamp=False,\
+                no_size_scale=False, center_on_densest=False):
     if (not isinstance(files, list)):
         files=[files]
     arguments={
@@ -301,6 +373,7 @@ def Sinkvis_input(files="snapshot_000.hdf5", rmax=False, full_box=False, center=
         "--np": np,
         "--res": res,
         "--only_movie": only_movie,
+        "--no_pickle": no_pickle,
         "--fps": fps,
         "--movie_name": movie_name,
         "--sink_type": str(sink_type),
@@ -308,12 +381,15 @@ def Sinkvis_input(files="snapshot_000.hdf5", rmax=False, full_box=False, center=
         "--galunits": galunits,
         "--center_on_star": center_on_star,
         "--center_on_ID": center_on_ID,
+        "--center_on_densest": center_on_densest,
         "--Tcmap": Tcmap,
         "--cmap": cmap,
         "--no_movie": no_movie,
         "--outputfolder": outputfolder,
         "--plot_T_map": plot_T_map,
-        "--name_addition": name_addition
+        "--name_addition": name_addition,
+        "--no_timestamp": no_timestamp,
+        "--no_size_scale": no_size_scale
         }
     return arguments
 
@@ -354,6 +430,9 @@ if __name__ == "__main__":
     galunits = arguments["--galunits"]
     no_movie = arguments["--no_movie"]
     plot_T_map = arguments["--plot_T_map"]
+    no_pickle = arguments["--no_pickle"]
+    no_timestamp = arguments["--no_timestamp"]
+    no_size_scale = arguments["--no_size_scale"]
     fps = float(arguments["--fps"])
     movie_name = arguments["--movie_name"]
     outputfolder = arguments["--outputfolder"]
@@ -362,6 +441,7 @@ if __name__ == "__main__":
     sink_scale = float(arguments["--sink_scale"])
     center_on_star = 1 if arguments["--center_on_star"] else 0
     center_on_ID = int(arguments["--center_on_ID"])
+    center_on_densest = 1 if arguments["--center_on_densest"] else 0
     L = r*2
     length_unit = (1e3 if galunits else 1.)
     mass_unit = (1e10 if galunits else 1.)
@@ -373,8 +453,9 @@ if __name__ == "__main__":
 
     font = ImageFont.truetype("LiberationSans-Regular.ttf", res//12) 
     
-    if not os.path.exists(outputfolder):
-        os.mkdir(outputfolder)
+    if outputfolder:
+        if not os.path.exists(outputfolder):
+            os.mkdir(outputfolder)
 
     if nproc>1:
         Pool(nproc).map(MakeImage, (f for f in range(len(filenames))))
