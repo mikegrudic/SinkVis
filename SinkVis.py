@@ -65,19 +65,36 @@ def find_sink_in_densest_gas(snapnum):
         print("Looking for the sink particle with the densest gas around it...")
         numpart_total=load_from_snapshot("NumPart_Total",0,datafolder,snapnum)
         if (numpart_total[0] and numpart_total[sink_type]):
+            Ngb_target = 32
             #load_from_snapshot("keys",0,datafolder,snapnum)
             #load_from_snapshot("keys",5,datafolder,snapnum)
-            id = np.array(load_from_snapshot("ParticleIDs",0,datafolder,snapnum))
             ids = np.array(load_from_snapshot("ParticleIDs",sink_type,datafolder,snapnum))
-            Ngas = len(id); Nsink = len(ids); Ntot = Ngas+Nsink
+            Nsink = len(ids)
             xg = length_unit*np.array(load_from_snapshot("Coordinates",0,datafolder,snapnum))
             xs = length_unit*np.array(load_from_snapshot("Coordinates",sink_type,datafolder,snapnum))
-            x = np.append(xg, xs, axis=0); xg=0;
-            hg = length_unit*np.array(load_from_snapshot("SmoothingLength",0,datafolder,snapnum))
             hs = length_unit*np.array(load_from_snapshot("SinkRadius",sink_type,datafolder,snapnum))
-            h = np.append(hg, hs); hg=0;
-            mg = mass_unit*np.array(load_from_snapshot("Masses",0,datafolder,snapnum))
             ms = mass_unit*np.array(load_from_snapshot("Masses",sink_type,datafolder,snapnum))
+            #Keep only gas around sinks. There is probably a better way of doing this...
+            gas_to_keep = np.full(len(xg[:,0]), False)
+            for i in range(Nsink):
+                Ngb_num=0; dx=10.0*hs[i]
+                while(Ngb_target>Ngb_num):
+                    dx*=2.0 #keep things within some number of sink radius
+                    near_current_sink = (np.abs(xg[:,0]-xs[i,0])<dx) & (np.abs(xg[:,1]-xs[i,1])<dx) & (np.abs(xg[:,2]-xs[i,2])<dx)
+                    Ngb_num=np.sum(near_current_sink)
+                    print(ids[i],dx,Ngb_num)
+                #basically the array will be the result of a large set of OR operations
+                gas_to_keep |= near_current_sink
+            #Cut and load gas data
+            xg = xg[gas_to_keep,:]
+            id = np.array(load_from_snapshot("ParticleIDs",0,datafolder,snapnum))[gas_to_keep]
+            Ngas = len(id); Ntot = Ngas+Nsink
+            hg = length_unit*np.array(load_from_snapshot("SmoothingLength",0,datafolder,snapnum))[gas_to_keep]
+            mg = mass_unit*np.array(load_from_snapshot("Masses",0,datafolder,snapnum))[gas_to_keep]
+            #Append for neighbor search and discard stuff we don't need anymore
+            gas_to_keep=0
+            x = np.append(xg, xs, axis=0); xg=0;
+            h = np.append(hg, hs); hg=0;
             m = np.append(mg, ms); mg=0;
             #Build meshoid class
             Md = Meshoid.Meshoid(x, m=m, hsml=h, boxsize=boxsize)
