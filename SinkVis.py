@@ -92,7 +92,6 @@ def find_sink_in_densest_gas(snapnum):
             hg = length_unit*np.array(load_from_snapshot("SmoothingLength",0,datafolder,snapnum))[gas_to_keep]
             mg = mass_unit*np.array(load_from_snapshot("Masses",0,datafolder,snapnum))[gas_to_keep]
             #Append for neighbor search and discard stuff we don't need anymore
-            gas_to_keep=0
             x = np.append(xg, xs, axis=0); xg=0;
             h = np.append(hg, hs); hg=0;
             m = np.append(mg, ms); mg=0;
@@ -104,7 +103,7 @@ def find_sink_in_densest_gas(snapnum):
             #Let's go over all particles that are near sinks
             sink_neighbors = (Ngblist[Ngas:,:]).flatten()
             sink_neighbors = sink_neighbors[sink_neighbors<Ngas] #remove neighboring sinks
-            sink_neighbors_density = mass_unit/(length_unit**3)*np.array(load_from_snapshot("Density",0,datafolder,snapnum))[sink_neighbors]
+            sink_neighbors_density = mass_unit/(length_unit**3)*(np.array(load_from_snapshot("Density",0,datafolder,snapnum))[gas_to_keep])[sink_neighbors]
             gas_ind = sink_neighbors[np.argmax(sink_neighbors_density)]
             gas_dens = np.max(sink_neighbors_density)
             #Find which sinks this gas is around
