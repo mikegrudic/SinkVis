@@ -82,7 +82,7 @@ def find_sink_in_densest_gas(snapnum):
                     dx*=2.0 #keep things within some number of sink radius
                     near_current_sink = (np.abs(xg[:,0]-xs[i,0])<dx) & (np.abs(xg[:,1]-xs[i,1])<dx) & (np.abs(xg[:,2]-xs[i,2])<dx)
                     Ngb_num=np.sum(near_current_sink)
-                    print(ids[i],dx,Ngb_num)
+                    #print(ids[i],dx,Ngb_num)
                 #basically the array will be the result of a large set of OR operations
                 gas_to_keep |= near_current_sink
             #Cut and load gas data
@@ -457,7 +457,7 @@ if __name__ == "__main__":
     sink_type_text="PartType" + str(sink_type)
     sink_scale = float(arguments["--sink_scale"])
     center_on_star = 1 if arguments["--center_on_star"] else 0
-    center_on_ID = int(arguments["--center_on_ID"])
+    center_on_ID = int(arguments["--center_on_ID"]) if arguments["--center_on_ID"] else 0
     center_on_densest = 1 if arguments["--center_on_densest"] else 0
     L = r*2
     length_unit = (1e3 if galunits else 1.)
