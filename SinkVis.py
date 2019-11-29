@@ -139,6 +139,7 @@ def StarColor(mass_in_msun,cmap):
     return (colors[0],colors[1],colors[2])# if len(colors)==1 else colors)
 
 def MakeImage(i):
+    global center_on_ID
 #    print(i)
     snapnum1=file_numbers[i]
     snapnum2=(file_numbers[min(i+1,len(filenames)-1)] if n_interp>1 else snapnum1)
