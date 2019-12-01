@@ -119,16 +119,17 @@ def find_sink_in_densest_gas(snapnum):
             #pick mos massive sink
             sink_mass = np.max(sink_mass_list)
             sink_id = ids[sink_id_list[np.argmax(sink_mass_list)]]
-            print("Sink particle with densest gas is ID %d with mass %g and %g neighboring gas density"%(sink_id,sink_mass,gas_dens))
+            sink_pos = xs[ids==sink_id]
+            print("Sink particle with densest gas is ID %d at %g %g %g with mass %g and %g neighboring gas density"%(sink_id,sink_pos[0],sink_pos[1],sink_pos[2],sink_mass,gas_dens))
         else:
             print("No gas or sinks present")
             sink_id = 0; sink_mass = 0; gas_dens = 0;
-        np.savetxt(filename, np.array([sink_id,sink_mass,gas_dens]))
+        np.savetxt(filename, np.array([sink_id,sink_pos,sink_mass,gas_dens]))
     else:
         print("Loading data from "+filename)
         temp = np.loadtxt(filename)
-        sink_id = np.int32(temp[0]); sink_mass = temp[1]; gas_dens = temp[2]; 
-        print("Sink particle with densest gas is ID %d with mass %g and %g neighboring gas density"%(sink_id,sink_mass,gas_dens))
+        sink_id = np.int32(temp[0]); sink_pos = temp[1]; sink_mass = temp[2]; gas_dens = temp[3]; 
+        print("Sink particle with densest gas is ID %d at %g %g %g with mass %g and %g neighboring gas density"%(sink_id,sink_pos[0],sink_pos[1],sink_pos[2],sink_mass,gas_dens))
     return sink_id
             
 
@@ -178,9 +179,20 @@ def MakeImage(i):
                 print("Sink IDs present: ",np.int64(common_sink_ids))
                 print("Masses of present sinks: ",m_star)
                 print("Positions of present sinks: ",x1s-boxsize/2)
-                print("Massive sink IDs: ",np.int64(common_sink_ids[m_star>2]))
-                print("Massive masses sinks: ",m_star[m_star>2])
-                print("Positions of massive sinks: ",x1s[m_star>2]-boxsize/2)
+                ids_m=np.int64(common_sink_ids[m_star>2])
+                ms_m=m_star[m_star>2]
+                dxs_m=x1s[m_star>2]-boxsize/2
+                #sort, for now by x-y radial distance
+                drs_m=np.sqrt(dxs_m[:,0]**2+dxs_m[:,1]**2)
+                sortind = np.argsort(drs_m)
+                ids_m=ids_m[sortind]; ms_m=ms_m[sortind]; dxs_m=dxs_m[sortind,:]
+                print("Massive sink IDs: ",ids_m)
+                print("Massive masses sinks: ",ms_m)
+                print("Positions of massive sinks: ",dxs_m)
+                sinkfilename = "Sinkvis_snap%d_massive_sinks.txt"%(snapnum1)
+                if outputfolder:
+                    sinkfilename=outputfolder+'/'+sinkfilename
+                np.savetxt(sinkfilename,np.transpose(np.array([np.int64(ids_m),ms_m,dxs_m[:,0],dxs_m[:,1],dxs_m[:,2]])))
                 return
         if numpart_total[0]:
             id1, id2 = np.array(load_from_snapshot("ParticleIDs",0,datafolder,snapnum1)), np.array(load_from_snapshot("ParticleIDs",0,datafolder,snapnum2))
