@@ -68,17 +68,23 @@ def find_sink_in_densest_gas(snapnum):
             Ngb_target = 32
             #load_from_snapshot("keys",0,datafolder,snapnum)
             #load_from_snapshot("keys",5,datafolder,snapnum)
+            #First,load the sinks 
             ids = np.array(load_from_snapshot("ParticleIDs",sink_type,datafolder,snapnum))
             Nsink = len(ids)
-            xg = length_unit*np.array(load_from_snapshot("Coordinates",0,datafolder,snapnum))
             xs = length_unit*np.array(load_from_snapshot("Coordinates",sink_type,datafolder,snapnum))
             hs = length_unit*np.array(load_from_snapshot("SinkRadius",sink_type,datafolder,snapnum))
             ms = mass_unit*np.array(load_from_snapshot("Masses",sink_type,datafolder,snapnum))
+            #Let's load the gas densities and pick out the ones that are densest
+            rho = load_from_snapshot("Density",0,datafolder,snapnum)
+            dense_ind = rho>np.percentile(rho,np.min([99.0,np.max([100*(1.0-Nsink*1000/len(rho)),0])])) #denser than 99% of the gas or less if few particles
+            rho = rho[dense_ind] * mass_unit/(length_unit**3)
+            xg = length_unit*np.array(load_from_snapshot("Coordinates",0,datafolder,snapnum))[dense_ind,:]
+            #print("Stuff loaded Ns %d Ng_dense %d"%(Nsink,len(xg[:,0])))
             #Keep only gas around sinks. There is probably a better way of doing this...
             gas_to_keep = np.full(len(xg[:,0]), False)
             for i in range(Nsink):
                 Ngb_num=0; dx=10.0*hs[i]
-                while(Ngb_target>Ngb_num):
+                while(Ngb_target>Ngb_num and (dx/hs[i]<1000) ):
                     dx*=2.0 #keep things within some number of sink radius
                     near_current_sink = (np.abs(xg[:,0]-xs[i,0])<dx) & (np.abs(xg[:,1]-xs[i,1])<dx) & (np.abs(xg[:,2]-xs[i,2])<dx)
                     Ngb_num=np.sum(near_current_sink)
@@ -86,11 +92,11 @@ def find_sink_in_densest_gas(snapnum):
                 #basically the array will be the result of a large set of OR operations
                 gas_to_keep |= near_current_sink
             #Cut and load gas data
-            xg = xg[gas_to_keep,:]
-            id = np.array(load_from_snapshot("ParticleIDs",0,datafolder,snapnum))[gas_to_keep]
+            xg = xg[gas_to_keep,:];rho=rho[gas_to_keep]
+            id = (np.array(load_from_snapshot("ParticleIDs",0,datafolder,snapnum))[dense_ind])[gas_to_keep]
             Ngas = len(id); Ntot = Ngas+Nsink
-            hg = length_unit*np.array(load_from_snapshot("SmoothingLength",0,datafolder,snapnum))[gas_to_keep]
-            mg = mass_unit*np.array(load_from_snapshot("Masses",0,datafolder,snapnum))[gas_to_keep]
+            hg = length_unit*(np.array(load_from_snapshot("SmoothingLength",0,datafolder,snapnum))[dense_ind])[gas_to_keep]
+            mg = mass_unit*(np.array(load_from_snapshot("Masses",0,datafolder,snapnum))[dense_ind])[gas_to_keep]
             #Append for neighbor search and discard stuff we don't need anymore
             x = np.append(xg, xs, axis=0); xg=0;
             h = np.append(hg, hs); hg=0;
@@ -103,7 +109,7 @@ def find_sink_in_densest_gas(snapnum):
             #Let's go over all particles that are near sinks
             sink_neighbors = (Ngblist[Ngas:,:]).flatten()
             sink_neighbors = sink_neighbors[sink_neighbors<Ngas] #remove neighboring sinks
-            sink_neighbors_density = mass_unit/(length_unit**3)*(np.array(load_from_snapshot("Density",0,datafolder,snapnum))[gas_to_keep])[sink_neighbors]
+            sink_neighbors_density = rho[sink_neighbors]
             gas_ind = sink_neighbors[np.argmax(sink_neighbors_density)]
             gas_dens = np.max(sink_neighbors_density)
             #Find which sinks this gas is around
