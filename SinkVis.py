@@ -146,6 +146,8 @@ def StarColor(mass_in_msun,cmap):
 
 def MakeImage(i):
     global center_on_ID
+    global limits
+    global Tlimits
 #    print(i)
     snapnum1=file_numbers[i]
     snapnum2=(file_numbers[min(i+1,len(filenames)-1)] if n_interp>1 else snapnum1)
@@ -491,7 +493,12 @@ if __name__ == "__main__":
     if outputfolder:
         if not os.path.exists(outputfolder):
             os.mkdir(outputfolder)
-
+   
+   #Try to guess surface density limits for multiple snap runs (can't guess within MakeImage routine due to parallelization, also the first image is unlikely to be useful as it is often just the IC) so we will run the last one first, without parallelization
+    if ( ( (limits[0]==0) or (Tlimits[0]==0) ) and (len(filenames) > 1) ):
+        print("Surface density or temperature limits not set, running final snapshot first to guess the appropriate values.")
+        MakeImage(len(filenames)-1)
+        
     if nproc>1:
         Pool(nproc).map(MakeImage, (f for f in range(len(filenames))))
     else:
