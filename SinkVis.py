@@ -119,7 +119,7 @@ def find_sink_in_densest_gas(snapnum):
             #pick mos massive sink
             sink_mass = np.max(sink_mass_list)
             sink_id = ids[sink_id_list[np.argmax(sink_mass_list)]]
-            sink_pos = xs[ids==sink_id]
+            sink_pos = xs[ids==sink_id,:]
             print("Sink particle with densest gas is ID %d at %g %g %g with mass %g and %g neighboring gas density"%(sink_id,sink_pos[0],sink_pos[1],sink_pos[2],sink_mass,gas_dens))
         else:
             print("No gas or sinks present")
