@@ -80,7 +80,7 @@ def find_sink_in_densest_gas(snapnum):
             ms = mass_unit*np.array(load_from_snapshot("Masses",sink_type,datafolder,snapnum))
             #Let's load the gas densities and pick out the ones that are densest
             rho = load_from_snapshot("Density",0,datafolder,snapnum)
-            dense_ind = rho>np.percentile(rho,np.min([99.0,np.max([100*(1.0-Nsink*1000/len(rho)),0])])) #denser than 99% of the gas or less if few particles
+            dense_ind = rho>np.percentile(rho,np.min([99.0,np.max([100*(1.0-Nsink*10000/len(rho)),0])])) #denser than 99% of the gas or less if few particles
             rho = rho[dense_ind] * mass_unit/(length_unit**3)
             xg = length_unit*np.array(load_from_snapshot("Coordinates",0,datafolder,snapnum))[dense_ind,:]
             #print("Stuff loaded Ns %d Ng_dense %d"%(Nsink,len(xg[:,0])))
@@ -115,7 +115,8 @@ def find_sink_in_densest_gas(snapnum):
             for i,j in enumerate(range(Ngas,Ngas+Nsink)):
                 neighbors = Ngblist[j,:]
                 neighbors = neighbors[neighbors<Ngas] #only gas neighbors
-                max_neighbor_gas_density[i] = np.max(rho[neighbors])
+                if (len(neighbors)):
+                    max_neighbor_gas_density[i] = np.max(rho[neighbors])
             #Reorder sinks by neighbor gas density
             sink_order = max_neighbor_gas_density.argsort()
             ids = ids[sink_order]
@@ -173,7 +174,6 @@ def MakeImage(i):
         id1s = np.array(load_from_snapshot("ParticleIDs",sink_type,datafolder,snapnum1))
         m1s = mass_unit*np.array(load_from_snapshot("Masses",sink_type,datafolder,snapnum1))
         sink_IDs_to_center_on=id1s[m1s.argsort()[-N_high:]] #choose the N_high most massive
-
     for sink_ID in sink_IDs_to_center_on:
         pickle_filename = "Sinkvis_snap%d_%d_%d_r%g_res%d_c%g_%g_%g_%d_%d.pickle"%(snapnum1,0,n_interp,r,res,center[0],center[1],center[2],center_on_star,sink_ID)
         if outputfolder:
