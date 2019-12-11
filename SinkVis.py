@@ -175,7 +175,7 @@ def MakeImage(i):
         m1s = mass_unit*np.array(load_from_snapshot("Masses",sink_type,datafolder,snapnum1))
         sink_IDs_to_center_on=id1s[m1s.argsort()[-N_high:]] #choose the N_high most massive
     for sink_ID in sink_IDs_to_center_on:
-        pickle_filename = "Sinkvis_snap%d_%d_%d_r%g_res%d_c%g_%g_%g_%d_%d.pickle"%(snapnum1,0,n_interp,r,res,center[0],center[1],center[2],center_on_star,sink_ID)
+        pickle_filename = "Sinkvis_snap%d_%d_%d_r%g_res%d_c%g_%g_%g_0_%d.pickle"%(snapnum1,0,n_interp,r,res,center[0],center[1],center[2],sink_ID)
         if outputfolder:
             pickle_filename=outputfolder+'/'+pickle_filename
         if not os.path.exists(pickle_filename):
@@ -241,7 +241,7 @@ def MakeImage(i):
                 idx1=0; idx2=0; id1=0; id2=0;
             time = load_from_snapshot("Time",0,datafolder,snapnum1)
         for k in range(n_interp):
-            pickle_filename = "Sinkvis_snap%d_%d_%d_r%g_res%d_c%g_%g_%g_%d_%d.pickle"%(snapnum1,k,n_interp,r,res,center[0],center[1],center[2],center_on_star,sink_ID)
+            pickle_filename = "Sinkvis_snap%d_%d_%d_r%g_res%d_c%g_%g_%g_0_%d.pickle"%(snapnum1,k,n_interp,r,res,center[0],center[1],center[2],sink_ID)
             if outputfolder:
                 pickle_filename=outputfolder+'/'+pickle_filename
             if not os.path.exists(pickle_filename):
