@@ -350,12 +350,14 @@ def MakeImage(i):
                 gridres=res
                 if not no_size_scale:
                     if (r>1e-2):
-                        size_scale_text="%3.2gpc"%(r*500/1000)
-                        size_scale_ending=gridres/16+gridres*0.25
+                        scale_pc=10**np.round(np.log10(r*0.5))
+                        size_scale_text="%3.2gpc"%(scale_pc)
+                        size_scale_ending=gridres/16+gridres*(scale_pc)/(2*r)
+                        #size_scale_ending=gridres/16+gridres*0.25
                     else:
-                        new_scale_AU=10**np.round(np.log10(r*0.5*pc_to_AU))
-                        size_scale_text="%3.2gAU"%(new_scale_AU)
-                        size_scale_ending=gridres/16+gridres*(new_scale_AU)/(2*r*pc_to_AU)
+                        scale_AU=10**np.round(np.log10(r*0.5*pc_to_AU))
+                        size_scale_text="%3.2gAU"%(scale_AU)
+                        size_scale_ending=gridres/16+gridres*(scale_AU)/(2*r*pc_to_AU)
                     draw.line(((gridres/16, 7*gridres/8), (size_scale_ending, 7*gridres/8)), fill="#FFFFFF", width=6)
                     draw.text((gridres/16, 7*gridres/8 + 5), size_scale_text, font=font)
                 if not no_timestamp:
