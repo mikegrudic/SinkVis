@@ -360,7 +360,7 @@ def MakeImage(i):
                         #size_scale_ending=gridres/16+gridres*0.25
                     else:
                         scale_AU=10**np.round(np.log10(r*0.5*pc_to_AU))
-                        size_scale_text="%3.3gAU"%(scale_AU)
+                        size_scale_text="%3.4gAU"%(scale_AU)
                         size_scale_ending=gridres/16+gridres*(scale_AU)/(2*r*pc_to_AU)
                     draw.line(((gridres/16, 7*gridres/8), (size_scale_ending, 7*gridres/8)), fill="#FFFFFF", width=6)
                     draw.text((gridres/16, 7*gridres/8 + 5), size_scale_text, font=font)
