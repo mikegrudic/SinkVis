@@ -6,6 +6,7 @@ SinkVis.py <files> ... [options]
 Options:
     -h --help              Show this screen.
     --rmax=<pc>            Maximum radius of plot window; defaults to box size/10.
+    --dir=<x,y,z>          Coordinate direction to orient the image along - x, y, or z [default: z]
     --full_box             Sets the plot to the entire box, overrides rmax
     --c=<cx,cy,cz>         Coordinates of plot window center relative to box center [default: 0.0,0.0,0.0]
     --limits=<min,max>     Dynamic range of surface density colormap [default: 0,0]
@@ -117,9 +118,8 @@ def find_sink_in_densest_gas(snapnum):
             print("\t ID %d at %g %g %g with mass %g and %g neighboring gas density"%(ids[i],xs[i,0],xs[i,1],xs[i,2],ms[i],max_neighbor_gas_density[i]))
         return ids[-N_high:]
             
-
-def TransformCoords(x, angle):
-    return np.c_[x[:,0]*np.cos(angle) + x[:,1]*np.sin(angle), -x[:,0]*np.sin(angle) + x[:,1]*np.cos(angle), x[:,2]]
+def CoordTransform(x):
+    return np.roll(x, {'z': 0, 'y': 1, 'x': 2}[arguments["--dir"]], axis=1)
 
 def StarColor(mass_in_msun,cmap):
     if cmap=='afmhot':
@@ -147,7 +147,7 @@ def MakeImage(i):
         m1s = mass_unit*np.array(load_from_snapshot("Masses",sink_type,datafolder,snapnum1))
         sink_IDs_to_center_on=id1s[m1s.argsort()[-N_high:]] #choose the N_high most massive
     for sink_ID in sink_IDs_to_center_on:
-        pickle_filename = "Sinkvis_snap%d_%d_%d_r%g_res%d_c%g_%g_%g_0_%d.pickle"%(snapnum1,0,n_interp,r,res,center[0],center[1],center[2],sink_ID)
+        pickle_filename = "Sinkvis_snap%d_%d_%d_r%g_res%d_c%g_%g_%g_0_%d_%s.pickle"%(snapnum1,0,n_interp,r,res,center[0],center[1],center[2],sink_ID,arguments["--dir"])
         if outputfolder:
             pickle_filename=outputfolder+'/'+pickle_filename
         if not os.path.exists(pickle_filename):
@@ -162,6 +162,7 @@ def MakeImage(i):
                 doubles = unique[counts>1]
                 id2s[np.in1d(id2s,doubles)]=-1
                 x1s, x2s = length_unit*np.array(load_from_snapshot("Coordinates",sink_type,datafolder,snapnum1))[id1s.argsort()], length_unit*np.array(load_from_snapshot("Coordinates",sink_type,datafolder,snapnum2))[id2s.argsort()]
+                x1s, x2s = CoordTransform(x1s), CoordTransform(x2d)
                 m1s, m2s = mass_unit*np.array(load_from_snapshot("Masses",sink_type,datafolder,snapnum1))[id1s.argsort()], mass_unit*np.array(load_from_snapshot("Masses",sink_type,datafolder,snapnum2))[id2s.argsort()]
                 # take only the particles that are in both snaps
                 common_sink_ids = np.intersect1d(id1s,id2s)
@@ -196,6 +197,7 @@ def MakeImage(i):
                 doubles = unique[counts>1]
                 id2[np.in1d(id2,doubles)]=-1
                 x1, x2 = length_unit*np.array(load_from_snapshot("Coordinates",0,datafolder,snapnum1))[id1.argsort()], length_unit*np.array(load_from_snapshot("Coordinates",0,datafolder,snapnum2))[id2.argsort()]
+                x1, x2 = CoordTransform(x1), CoordTransform(x2)
                 if not galunits:
                     x1 -= boxsize/2 + center
                     x2 -= boxsize/2 + center
@@ -213,7 +215,7 @@ def MakeImage(i):
                 idx1=0; idx2=0; id1=0; id2=0;
             time = load_from_snapshot("Time",0,datafolder,snapnum1)
         for k in range(n_interp):
-            pickle_filename = "Sinkvis_snap%d_%d_%d_r%g_res%d_c%g_%g_%g_0_%d.pickle"%(snapnum1,k,n_interp,r,res,center[0],center[1],center[2],sink_ID)
+            pickle_filename = "Sinkvis_snap%d_%d_%d_r%g_res%d_c%g_%g_%g_0_%d_%s.pickle"%(snapnum1,k,n_interp,r,res,center[0],center[1],center[2],sink_ID,arguments["--dir"])
             if outputfolder:
                 pickle_filename=outputfolder+'/'+pickle_filename
             if not os.path.exists(pickle_filename):
