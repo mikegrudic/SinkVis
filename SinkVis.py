@@ -41,6 +41,7 @@ Options:
 #import meshoid
 from Meshoid import GridSurfaceDensity, GridAverage
 import Meshoid
+from scipy.spatial import cKDTree
 import h5py
 import matplotlib
 matplotlib.use('Agg')
@@ -85,40 +86,11 @@ def find_sink_in_densest_gas(snapnum):
             xg = length_unit*np.array(load_from_snapshot("Coordinates",0,datafolder,snapnum))[dense_ind,:]
             #print("Stuff loaded Ns %d Ng_dense %d"%(Nsink,len(xg[:,0])))
             #Keep only gas around sinks. There is probably a better way of doing this...
-            gas_to_keep = np.full(len(xg[:,0]), False)
-            for i in range(Nsink):
-                Ngb_num=0; dx=10.0*hs[i]
-                while(Ngb_target>Ngb_num and (dx/hs[i]<1000) ):
-                    dx*=2.0 #keep things within some number of sink radius
-                    near_current_sink = (np.abs(xg[:,0]-xs[i,0])<dx) & (np.abs(xg[:,1]-xs[i,1])<dx) & (np.abs(xg[:,2]-xs[i,2])<dx)
-                    Ngb_num=np.sum(near_current_sink)
-                    #print(ids[i],dx,Ngb_num)
-                #basically the array will be the result of a large set of OR operations
-                gas_to_keep |= near_current_sink
-            #Cut and load gas data
-            xg = xg[gas_to_keep,:];rho=rho[gas_to_keep]
-            id = (np.array(load_from_snapshot("ParticleIDs",0,datafolder,snapnum))[dense_ind])[gas_to_keep]
-            Ngas = len(id); Ntot = Ngas+Nsink
-            hg = length_unit*(np.array(load_from_snapshot("SmoothingLength",0,datafolder,snapnum))[dense_ind])[gas_to_keep]
-            mg = mass_unit*(np.array(load_from_snapshot("Masses",0,datafolder,snapnum))[dense_ind])[gas_to_keep]
-            #Append for neighbor search and discard stuff we don't need anymore
-            x = np.append(xg, xs, axis=0); xg=0;
-            h = np.append(hg, hs); hg=0;
-            m = np.append(mg, ms); mg=0;
-            #Build meshoid class
-            Md = Meshoid.Meshoid(x, m=m, hsml=h, boxsize=boxsize)
-            #Find nearest neighbors
-            print("Building neighbor list...")
-            Ngblist = Md.NearestNeighbors()
-            max_neighbor_gas_density = np.zeros(Nsink)
-            #Let's go over all particles that are near sinks
-            for i,j in enumerate(range(Ngas,Ngas+Nsink)):
-                neighbors = Ngblist[j,:]
-                neighbors = neighbors[neighbors<Ngas] #only gas neighbors
-                if (len(neighbors)):
-                    max_neighbor_gas_density[i] = np.max(rho[neighbors])
+            gas_tree = cKDTree(xg)
+            sink_gas_neighbors = gas_tree.query(xs,32)[1]
+            max_neighbor_gas_density = np.max(rho[sink_gas_neighbors],axis=1)
             #Reorder sinks by neighbor gas density
-            sink_order = max_neighbor_gas_density.argsort()
+            sink_order = max_neighbor_gas_density.argsort()[::-1]
             ids = ids[sink_order]
             xs = xs[sink_order,:]
             ms = ms[sink_order]
@@ -131,7 +103,7 @@ def find_sink_in_densest_gas(snapnum):
             outfile = open(filename, 'wb') 
             pickle.dump([ids, xs, ms, max_neighbor_gas_density], outfile)
             outfile.close()
-            return ids[-N_high:]
+            return ids[:N_high]
         else:
             print("No gas or sinks present")
             return [0]
