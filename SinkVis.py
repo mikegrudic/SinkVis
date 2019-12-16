@@ -84,8 +84,6 @@ def find_sink_in_densest_gas(snapnum):
             dense_ind = rho>np.percentile(rho,np.min([99.0,np.max([100*(1.0-Nsink*10000/len(rho)),0])])) #denser than 99% of the gas or less if few particles
             rho = rho[dense_ind] * mass_unit/(length_unit**3)
             xg = length_unit*np.array(load_from_snapshot("Coordinates",0,datafolder,snapnum))[dense_ind,:]
-            #print("Stuff loaded Ns %d Ng_dense %d"%(Nsink,len(xg[:,0])))
-            #Keep only gas around sinks. There is probably a better way of doing this...
             gas_tree = cKDTree(xg)
             sink_gas_neighbors = gas_tree.query(xs,32)[1]
             max_neighbor_gas_density = np.max(rho[sink_gas_neighbors],axis=1)
@@ -242,8 +240,12 @@ def MakeImage(i):
                     h = float(k)/n_interp * h2 + (n_interp-float(k))/n_interp * h1
                     h = np.clip(h,L/res, 1e100)
                     sigma_gas = GridSurfaceDensity(m, x, h, star_center*0, L, res=res).T
-                    Tmap_gas = GridAverage(u, x, h,star_center*0, L, res=res).T/1.01e4 #should be similar to mass weighted average if partcile masses roughly constant, also converting to K
-                    logTmap_gas = GridAverage(np.log10(u/1.01e4), x, h,star_center*0, L, res=res).T #average of log T so that it is not completely dominated by the warm ISM
+                    if plot_T_map:
+                        Tmap_gas = GridAverage(u, x, h,star_center*0, L, res=res).T/1.01e4 #should be similar to mass weighted average if partcile masses roughly constant, also converting to K
+                        logTmap_gas = GridAverage(np.log10(u/1.01e4), x, h,star_center*0, L, res=res).T #average of log T so that it is not completely dominated by the warm ISM
+                    else:
+                        Tmap_gas = np.zeros((res,res))
+                        logTmap_gas = np.zeros((res,res))
                 else:
                     sigma_gas = np.zeros((res,res))
                     Tmap_gas = np.zeros((res,res))
