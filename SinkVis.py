@@ -339,7 +339,7 @@ def MakeImage(i):
                         size_scale_text="%3.4gAU"%(scale_AU)
                         size_scale_ending=gridres/16+gridres*(scale_AU)/(2*r*pc_to_AU)
                     draw.line(((gridres/16, 7*gridres/8), (size_scale_ending, 7*gridres/8)), fill="#FFFFFF", width=6)
-                    draw.text((gridres/16, 7*gridres/8 + 5), size_scale_text)#, font=font)
+                    draw.text((gridres/16, 7*gridres/8 + 5), size_scale_text, font=font)
                 if not no_timestamp:
                     if (time*979>=1e-2):
                         time_text="%3.2gMyr"%(time*979)
@@ -347,7 +347,7 @@ def MakeImage(i):
                         time_text="%3.2gkyr"%(time*979*1e3)
                     else:
                         time_text="%3.2gyr"%(time*979*1e6)
-                    draw.text((gridres/16, gridres/24), time_text)#, font=font)
+                    draw.text((gridres/16, gridres/24), time_text, font=font)
                 if numpart_total[sink_type]:
                     d = aggdraw.Draw(F)
                     pen = aggdraw.Pen("white",gridres/800)
@@ -512,7 +512,7 @@ if __name__ == "__main__":
     r *= length_unit
     L *= length_unit
 
-#    font = ImageFont.truetype("LiberationSans-Regular.ttf", res//12) 
+    font = ImageFont.truetype("LiberationSans-Regular.ttf", res//12) 
     
     if outputfolder:
         if not os.path.exists(outputfolder):
