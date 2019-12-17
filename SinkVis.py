@@ -40,7 +40,7 @@ Options:
 # python SinkVis.py /panfs/ds08/hopkins/guszejnov/GMC_sim/Tests/200msun/MHD_isoT_2e6/output/snapshot*.hdf5 --np=24 --only_movie --movie_name=200msun_MHD_isoT_2e6
 
 #import meshoid
-from Meshoid import GridSurfaceDensity, GridAverage
+from Meshoid import GridSurfaceDensityMultigrid, GridAverage
 import Meshoid
 from scipy.spatial import cKDTree
 import h5py
