@@ -160,7 +160,7 @@ def MakeImage(i):
                 doubles = unique[counts>1]
                 id2s[np.in1d(id2s,doubles)]=-1
                 x1s, x2s = length_unit*np.array(load_from_snapshot("Coordinates",sink_type,datafolder,snapnum1))[id1s.argsort()], length_unit*np.array(load_from_snapshot("Coordinates",sink_type,datafolder,snapnum2))[id2s.argsort()]
-                x1s, x2s = CoordTransform(x11), CoordTransform(x2d)
+                x1s, x2s = CoordTransform(x1s), CoordTransform(x2s)
                 m1s, m2s = mass_unit*np.array(load_from_snapshot("Masses",sink_type,datafolder,snapnum1))[id1s.argsort()], mass_unit*np.array(load_from_snapshot("Masses",sink_type,datafolder,snapnum2))[id2s.argsort()]
                 # take only the particles that are in both snaps
                 common_sink_ids = np.intersect1d(id1s,id2s)
