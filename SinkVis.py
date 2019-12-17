@@ -241,7 +241,7 @@ def MakeImage(i):
 
                     h = float(k)/n_interp * h2 + (n_interp-float(k))/n_interp * h1
                     h = np.clip(h,L/res, 1e100)
-                    sigma_gas = GridSurfaceDensity(m, x, h, star_center*0, L, res=res).T
+                    sigma_gas = GridSurfaceDensityMultigrid(m, x, h, star_center*0, L, res=res).T
                     if plot_T_map:
                         Tmap_gas = GridAverage(u, x, h,star_center*0, L, res=res).T/1.01e4 #should be similar to mass weighted average if partcile masses roughly constant, also converting to K
                         logTmap_gas = GridAverage(np.log10(u/1.01e4), x, h,star_center*0, L, res=res).T #average of log T so that it is not completely dominated by the warm ISM
@@ -339,7 +339,7 @@ def MakeImage(i):
                         size_scale_text="%3.4gAU"%(scale_AU)
                         size_scale_ending=gridres/16+gridres*(scale_AU)/(2*r*pc_to_AU)
                     draw.line(((gridres/16, 7*gridres/8), (size_scale_ending, 7*gridres/8)), fill="#FFFFFF", width=6)
-                    draw.text((gridres/16, 7*gridres/8 + 5), size_scale_text, font=font)
+                    draw.text((gridres/16, 7*gridres/8 + 5), size_scale_text)#, font=font)
                 if not no_timestamp:
                     if (time*979>=1e-2):
                         time_text="%3.2gMyr"%(time*979)
@@ -347,7 +347,7 @@ def MakeImage(i):
                         time_text="%3.2gkyr"%(time*979*1e3)
                     else:
                         time_text="%3.2gyr"%(time*979*1e6)
-                    draw.text((gridres/16, gridres/24), time_text, font=font)
+                    draw.text((gridres/16, gridres/24), time_text)#, font=font)
                 if numpart_total[sink_type]:
                     d = aggdraw.Draw(F)
                     pen = aggdraw.Pen("white",gridres/800)
@@ -512,7 +512,7 @@ if __name__ == "__main__":
     r *= length_unit
     L *= length_unit
 
-    font = ImageFont.truetype("LiberationSans-Regular.ttf", res//12) 
+#    font = ImageFont.truetype("LiberationSans-Regular.ttf", res//12) 
     
     if outputfolder:
         if not os.path.exists(outputfolder):
