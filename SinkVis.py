@@ -15,7 +15,7 @@ Options:
     --cmap=<name>          Name of colormap to use [default: viridis]
     --interp_fac=<N>       Number of interpolating frames per snapshot [default: 1]
     --np=<N>               Number of processors to run on [default: 1]
-    --res=<N>              Image resolution [default: 500]
+    --res=<N>              Image resolution [default: 512]
     --only_movie           Only the movie is saved, the images are removed at the end
     --no_movie             Does not create a movie, only makes images
     --fps=<fps>            Frame per second for movie [default: 20]
@@ -354,7 +354,7 @@ def MakeImage(i):
                     for j in np.arange(len(x_star))[m_star>0]:
                         X = x_star[j] - star_center
                         ms = m_star[j]
-                        star_size = gridres/400 * (ms/sink_scale)**(1./3)
+                        star_size = gridres/400 * (np.log10(ms/sink_scale) + 1)
                         star_size = max(1,star_size)
                         p = aggdraw.Brush(StarColor(ms,cmap))
                         X -= boxsize/2 + center
