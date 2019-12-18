@@ -194,14 +194,16 @@ def MakeImage(i):
                 unique, counts = np.unique(id2, return_counts=True)
                 doubles = unique[counts>1]
                 id2[np.in1d(id2,doubles)]=-1
-                x1, x2 = length_unit*np.array(load_from_snapshot("Coordinates",0,datafolder,snapnum1))[id1.argsort()], length_unit*np.array(load_from_snapshot("Coordinates",0,datafolder,snapnum2))[id2.argsort()]
+
+                id1_order, id2_order = id1.argsort(), id2.argsort()
+                x1, x2 = length_unit*np.array(load_from_snapshot("Coordinates",0,datafolder,snapnum1))[id1_order], length_unit*np.array(load_from_snapshot("Coordinates",0,datafolder,snapnum2))[id2_order]
                 x1, x2 = CoordTransform(x1), CoordTransform(x2)
                 if not galunits:
                     x1 -= boxsize/2 + center
                     x2 -= boxsize/2 + center
-                u1, u2 = np.array(load_from_snapshot("InternalEnergy",0,datafolder,snapnum1))[id1.argsort()], np.array(load_from_snapshot("InternalEnergy",0,datafolder,snapnum2))[id2.argsort()]
-                h1, h2 = length_unit*np.array(load_from_snapshot("SmoothingLength",0,datafolder,snapnum1))[id1.argsort()], length_unit*np.array(load_from_snapshot("SmoothingLength",0,datafolder,snapnum2))[id2.argsort()]
-                m1, m2 = mass_unit*np.array(load_from_snapshot("Masses",0,datafolder,snapnum1))[id1.argsort()], mass_unit*np.array(load_from_snapshot("Masses",0,datafolder,snapnum2))[id2.argsort()]
+                u1, u2 = np.array(load_from_snapshot("InternalEnergy",0,datafolder,snapnum1))[id1_order], np.array(load_from_snapshot("InternalEnergy",0,datafolder,snapnum2))[id2_order]
+                h1, h2 = length_unit*np.array(load_from_snapshot("SmoothingLength",0,datafolder,snapnum1))[id1_order], length_unit*np.array(load_from_snapshot("SmoothingLength",0,datafolder,snapnum2))[id2_order]
+                m1, m2 = mass_unit*np.array(load_from_snapshot("Masses",0,datafolder,snapnum1))[id1_order], mass_unit*np.array(load_from_snapshot("Masses",0,datafolder,snapnum2))[id2_order]
                 # take only the particles that are in both snaps
                 common_ids = np.intersect1d(id1,id2)
                 idx1 = np.in1d(np.sort(id1),common_ids)
