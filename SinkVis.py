@@ -34,7 +34,7 @@ Options:
     --no_timestamp         Flag, if set no timestamp will be put on the images
     --no_size_scale        Flag, if set no size scale will be put on the images
     --draw_axes            Flag, if set the coordinate axes are added to the figure
-    --remake_only            Flag, if set SinkVis will only used already calculated pickle files, used to remake plots
+    --remake_only          Flag, if set SinkVis will only used already calculated pickle files, used to remake plots
 """
 
 #Example
@@ -497,7 +497,7 @@ if __name__ == "__main__":
     no_movie = arguments["--no_movie"]
     plot_T_map = arguments["--plot_T_map"]
     no_pickle = arguments["--no_pickle"]
-    remake_only = arguments["remake_only"]
+    remake_only = arguments["--remake_only"]
     no_timestamp = arguments["--no_timestamp"]
     draw_axes = arguments["--draw_axes"]
     no_size_scale = arguments["--no_size_scale"]
