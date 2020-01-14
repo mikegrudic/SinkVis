@@ -34,6 +34,7 @@ Options:
     --no_timestamp         Flag, if set no timestamp will be put on the images
     --no_size_scale        Flag, if set no size scale will be put on the images
     --draw_axes            Flag, if set the coordinate axes are added to the figure
+    --remake_only            Flag, if set SinkVis will only used already calculated pickle files, used to remake plots
 """
 
 #Example
@@ -149,6 +150,9 @@ def MakeImage(i):
         if outputfolder:
             pickle_filename=outputfolder+'/'+pickle_filename
         if not os.path.exists(pickle_filename):
+            if remake_only:
+                print(pickle_filename+" does not exist, returning...")
+                return
             print("Loading snapshot data from "+filenames[i])
             #We don't have the data, must read it from snapshot
             #keylist=load_from_snapshot("keys",0,datafolder,snapnum1)
@@ -418,7 +422,7 @@ def Sinkvis_input(files="snapshot_000.hdf5", rmax=False, full_box=False, center=
                 interp_fac=1, np=1,res=500, only_movie=False, fps=20, movie_name="sink_movie",\
                 center_on_star=0, N_high=1, Tcmap="inferno", cmap="viridis", no_movie=True, outputfolder="output",\
                 plot_T_map=True, sink_scale=0.1, sink_type=5, galunits=False,name_addition="",center_on_ID=0,no_pickle=False, no_timestamp=False,\
-                no_size_scale=False, center_on_densest=False, draw_axes=False):
+                no_size_scale=False, center_on_densest=False, draw_axes=False, remake_only=False):
     if (not isinstance(files, list)):
         files=[files]
     arguments={
@@ -450,7 +454,8 @@ def Sinkvis_input(files="snapshot_000.hdf5", rmax=False, full_box=False, center=
         "--name_addition": name_addition,
         "--no_timestamp": no_timestamp,
         "--no_size_scale": no_size_scale,
-        "--draw_axes": draw_axes
+        "--draw_axes": draw_axes,
+        "--remake_only": remake_only
         }
     return arguments
 
@@ -492,6 +497,7 @@ if __name__ == "__main__":
     no_movie = arguments["--no_movie"]
     plot_T_map = arguments["--plot_T_map"]
     no_pickle = arguments["--no_pickle"]
+    remake_only = arguments["remake_only"]
     no_timestamp = arguments["--no_timestamp"]
     draw_axes = arguments["--draw_axes"]
     no_size_scale = arguments["--no_size_scale"]
