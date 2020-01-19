@@ -35,6 +35,7 @@ Options:
     --no_size_scale        Flag, if set no size scale will be put on the images
     --draw_axes            Flag, if set the coordinate axes are added to the figure
     --remake_only          Flag, if set SinkVis will only used already calculated pickle files, used to remake plots
+    --rescale_hsml=<f>     Factor by which the smoothing lengths of the particles are rescaled [default: 1]
 """
 
 #Example
@@ -146,7 +147,7 @@ def MakeImage(i):
         m1s = mass_unit*np.array(load_from_snapshot("Masses",sink_type,datafolder,snapnum1))
         sink_IDs_to_center_on=id1s[m1s.argsort()[-N_high:]] #choose the N_high most massive
     for sink_ID in sink_IDs_to_center_on:
-        pickle_filename = "Sinkvis_snap%d_%d_%d_r%g_res%d_c%g_%g_%g_0_%d_%s.pickle"%(snapnum1,0,n_interp,r,res,center[0],center[1],center[2],sink_ID,arguments["--dir"])
+        pickle_filename = "Sinkvis_snap%d_%d_%d_r%g_res%d_c%g_%g_%g_0_%d_%s"%(snapnum1,0,n_interp,r,res,center[0],center[1],center[2],sink_ID,arguments["--dir"])+rescale_text+".pickle"
         if outputfolder:
             pickle_filename=outputfolder+'/'+pickle_filename
         if not os.path.exists(pickle_filename):
@@ -212,14 +213,14 @@ def MakeImage(i):
                 common_ids = np.intersect1d(id1,id2)
                 idx1 = np.in1d(np.sort(id1),common_ids)
                 idx2 = np.in1d(np.sort(id2),common_ids)
-                x1 = x1[idx1]; u1 = u1[idx1]; h1 = h1[idx1]; m1 = m1[idx1]
-                x2 = x2[idx2]; u2 = u2[idx2]; h2 = h2[idx2]; m2 = m2[idx2]
+                x1 = x1[idx1]; u1 = u1[idx1]; h1 = h1[idx1]*rescale_hsml; m1 = m1[idx1]
+                x2 = x2[idx2]; u2 = u2[idx2]; h2 = h2[idx2]*rescale_hsml; m2 = m2[idx2]
                 m = m2
                 # unload stuff to save memory
                 idx1=0; idx2=0; id1=0; id2=0;
             time = load_from_snapshot("Time",0,datafolder,snapnum1)
         for k in range(n_interp):
-            pickle_filename = "Sinkvis_snap%d_%d_%d_r%g_res%d_c%g_%g_%g_0_%d_%s.pickle"%(snapnum1,k,n_interp,r,res,center[0],center[1],center[2],sink_ID,arguments["--dir"])
+            pickle_filename = "Sinkvis_snap%d_%d_%d_r%g_res%d_c%g_%g_%g_0_%d_%s"%(snapnum1,k,n_interp,r,res,center[0],center[1],center[2],sink_ID,arguments["--dir"])+rescale_text+".pickle"
             if outputfolder:
                 pickle_filename=outputfolder+'/'+pickle_filename
             if not os.path.exists(pickle_filename):
@@ -422,7 +423,7 @@ def Sinkvis_input(files="snapshot_000.hdf5", rmax=False, full_box=False, center=
                 interp_fac=1, np=1,res=500, only_movie=False, fps=20, movie_name="sink_movie",\
                 center_on_star=0, N_high=1, Tcmap="inferno", cmap="viridis", no_movie=True, outputfolder="output",\
                 plot_T_map=True, sink_scale=0.1, sink_type=5, galunits=False,name_addition="",center_on_ID=0,no_pickle=False, no_timestamp=False,\
-                no_size_scale=False, center_on_densest=False, draw_axes=False, remake_only=False):
+                no_size_scale=False, center_on_densest=False, draw_axes=False, remake_only=False, rescale_hsml=1.0):
     if (not isinstance(files, list)):
         files=[files]
     arguments={
@@ -455,7 +456,8 @@ def Sinkvis_input(files="snapshot_000.hdf5", rmax=False, full_box=False, center=
         "--no_timestamp": no_timestamp,
         "--no_size_scale": no_size_scale,
         "--draw_axes": draw_axes,
-        "--remake_only": remake_only
+        "--remake_only": remake_only,
+        "--rescale_hsml": rescale_hsml
         }
     return arguments
 
@@ -502,6 +504,7 @@ if __name__ == "__main__":
     draw_axes = arguments["--draw_axes"]
     no_size_scale = arguments["--no_size_scale"]
     fps = float(arguments["--fps"])
+    rescale_hsml = float(arguments["--rescale_hsml"])
     movie_name = arguments["--movie_name"]
     outputfolder = arguments["--outputfolder"]
     sink_type = int(arguments["--sink_type"])
@@ -521,6 +524,12 @@ if __name__ == "__main__":
     L *= length_unit
 
     font = ImageFont.truetype("LiberationSans-Regular.ttf", res//12) 
+    
+    #Only change the pickle filename if we rescale
+    if (rescale_hsml!=1.0):
+        rescale_text='_%g'%(rescale_hsml)
+    else:
+        rescale_text=''
     
     if outputfolder:
         if not os.path.exists(outputfolder):
