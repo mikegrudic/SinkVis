@@ -36,12 +36,12 @@ Options:
     --draw_axes            Flag, if set the coordinate axes are added to the figure
     --remake_only          Flag, if set SinkVis will only used already calculated pickle files, used to remake plots
     --rescale_hsml=<f>     Factor by which the smoothing lengths of the particles are rescaled [default: 1]
+    --highlight_wind=<f>   Factor by which to increase wind particle masses if you want to highlight them [default: 1]
 """
 
 #Example
 # python SinkVis.py /panfs/ds08/hopkins/guszejnov/GMC_sim/Tests/200msun/MHD_isoT_2e6/output/snapshot*.hdf5 --np=24 --only_movie --movie_name=200msun_MHD_isoT_2e6
 
-#import meshoid
 from Meshoid import GridSurfaceDensityMultigrid, GridAverage
 import Meshoid
 from scipy.spatial import cKDTree
@@ -51,7 +51,6 @@ matplotlib.use('Agg')
 from matplotlib import pyplot as plt
 from PIL import Image, ImageDraw, ImageFont
 import numpy as np
-#from joblib import Parallel, delayed
 from multiprocessing import Pool
 import aggdraw
 from natsort import natsorted
@@ -62,6 +61,8 @@ from sys import argv
 from load_from_snapshot import load_from_snapshot
 import re
 import pickle
+
+wind_ids = np.array([1913298393, 1913298394])
 
 def find_sink_in_densest_gas(snapnum):
     #Find the N_high sinks in snapshot near the densest gas and return their ID, otherwise return 0
@@ -143,7 +144,7 @@ def MakeImage(i):
         sink_IDs_to_center_on=find_sink_in_densest_gas(snapnum1)
     if center_on_star:
         #Find the IDs of the most massive sinks
-        id1s = np.array(load_from_snapshot("ParticleIDs",sink_type,datafolder,snapnum1))
+        id1s = np.int_(load_from_snapshot("ParticleIDs",sink_type,datafolder,snapnum1))
         m1s = mass_unit*np.array(load_from_snapshot("Masses",sink_type,datafolder,snapnum1))
         sink_IDs_to_center_on=id1s[m1s.argsort()[-N_high:]] #choose the N_high most massive
     for sink_ID in sink_IDs_to_center_on:
@@ -160,7 +161,7 @@ def MakeImage(i):
             numpart_total=load_from_snapshot("NumPart_Total",0,datafolder,snapnum1)
             if not numpart_total[sink_type] and (center_on_star or (sink_ID>0)): return
             if numpart_total[sink_type]:
-                id1s, id2s = np.array(load_from_snapshot("ParticleIDs",sink_type,datafolder,snapnum1)), np.array(load_from_snapshot("ParticleIDs",sink_type,datafolder,snapnum2))
+                id1s, id2s = np.int_(load_from_snapshot("ParticleIDs",sink_type,datafolder,snapnum1)), np.int_(load_from_snapshot("ParticleIDs",sink_type,datafolder,snapnum2))                
                 unique, counts = np.unique(id2s, return_counts=True)
                 doubles = unique[counts>1]
                 id2s[np.in1d(id2s,doubles)]=-1
@@ -195,9 +196,29 @@ def MakeImage(i):
                     np.savetxt(sinkfilename,np.transpose(np.array([np.int64(ids_m),ms_m,dxs_m[:,0],dxs_m[:,1],dxs_m[:,2]])))
                     return
             if numpart_total[0]:
-                id1, id2 = np.array(load_from_snapshot("ParticleIDs",0,datafolder,snapnum1)), np.array(load_from_snapshot("ParticleIDs",0,datafolder,snapnum2))
+                id1, id2 = np.int_(load_from_snapshot("ParticleIDs",0,datafolder,snapnum1)), np.int_(load_from_snapshot("ParticleIDs",0,datafolder,snapnum2))
+                wind_idx1 = np.in1d(id1, wind_ids)
+#                print(np.sum(id1==wind_ids[0]), np.sum(id1==wind_ids[1]), id1.min(), id1.max())
+                if np.any(wind_idx1):
+                    progenitor_ids = np.int_(load_from_snapshot("ParticleIDGenerationNumber",0,datafolder,snapnum1))[wind_idx1]
+                    child_ids = np.int_(load_from_snapshot("ParticleChildIDsNumber",0,datafolder,snapnum1))[wind_idx1]                    
+                    wind_particle_ids = -((progenitor_ids << 16) + child_ids) # bit-shift the progenitor ID outside the plausible range for particle count, then add child ids to get a unique new id
+                    id1[wind_idx1] = wind_particle_ids
+#                    print(np.sum(id1==wind_ids[0]), np.sum(id1==wind_ids[1]), id1.min(), id1.max())
+#                    print(len(np.unique(id1)), len(id1))
+                    
+                wind_idx2 = np.in1d(id2, wind_ids)
+                if np.any(wind_idx2):
+                    progenitor_ids = np.int_(load_from_snapshot("ParticleIDGenerationNumber",0,datafolder,snapnum2))[wind_idx2]
+                    child_ids = np.int_(load_from_snapshot("ParticleChildIDsNumber",0,datafolder,snapnum2))[wind_idx2]
+                    wind_particle_ids = -((progenitor_ids << 16) + child_ids) # bit-shift the progenitor ID outside the plausible range for particle count, then add child ids to get a unique new id
+                    id2[wind_idx2] = wind_particle_ids
+#                    print(np.sum(id2==wind_ids[0]), np.sum(id2==wind_ids[1]), id2.min(), id2.max())
+#                    print(len(np.unique(id2)), len(id2))
+
                 unique, counts = np.unique(id2, return_counts=True)
                 doubles = unique[counts>1]
+
                 id2[np.in1d(id2,doubles)]=-1
 
                 id1_order, id2_order = id1.argsort(), id2.argsort()
@@ -213,11 +234,16 @@ def MakeImage(i):
                 common_ids = np.intersect1d(id1,id2)
                 idx1 = np.in1d(np.sort(id1),common_ids)
                 idx2 = np.in1d(np.sort(id2),common_ids)
-                x1 = x1[idx1]; u1 = u1[idx1]; h1 = h1[idx1]*rescale_hsml; m1 = m1[idx1]
-                x2 = x2[idx2]; u2 = u2[idx2]; h2 = h2[idx2]*rescale_hsml; m2 = m2[idx2]
-                m = m2
+                x1 = x1[idx1]; u1 = u1[idx1]; h1 = h1[idx1]*rescale_hsml; m1 = m1[idx1]; id1 = np.sort(id1)[idx1]
+                x2 = x2[idx2]; u2 = u2[idx2]; h2 = h2[idx2]*rescale_hsml; m2 = m2[idx2]; id2 = np.sort(id2)[idx2]
+                m = m2 # mass to actually use in render
+                if highlight_wind != 1:
+                    m[id2 < 0] *= highlight_wind
+                
                 # unload stuff to save memory
                 idx1=0; idx2=0; id1=0; id2=0;
+
+                
             time = load_from_snapshot("Time",0,datafolder,snapnum1)
         for k in range(n_interp):
             pickle_filename = "Sinkvis_snap%d_%d_%d_r%g_res%d_c%g_%g_%g_0_%d_%s"%(snapnum1,k,n_interp,r,res,center[0],center[1],center[2],sink_ID,arguments["--dir"])+rescale_text+".pickle"
@@ -457,7 +483,8 @@ def Sinkvis_input(files="snapshot_000.hdf5", rmax=False, full_box=False, center=
         "--no_size_scale": no_size_scale,
         "--draw_axes": draw_axes,
         "--remake_only": remake_only,
-        "--rescale_hsml": rescale_hsml
+        "--rescale_hsml": rescale_hsml,
+        "--highlight_wind": highlight_wind
         }
     return arguments
 
@@ -505,6 +532,7 @@ if __name__ == "__main__":
     no_size_scale = arguments["--no_size_scale"]
     fps = float(arguments["--fps"])
     rescale_hsml = float(arguments["--rescale_hsml"])
+    highlight_wind = float(arguments["--highlight_wind"])
     movie_name = arguments["--movie_name"]
     outputfolder = arguments["--outputfolder"]
     sink_type = int(arguments["--sink_type"])
