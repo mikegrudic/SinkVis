@@ -18,7 +18,7 @@ Options:
     --res=<N>              Image resolution [default: 512]
     --only_movie           Only the movie is saved, the images are removed at the end
     --no_movie             Does not create a movie, only makes images
-    --fps=<fps>            Frame per second for movie [default: 20]
+    --fps=<fps>            Frame per second for movie [default: 24]
     --movie_name=<name>    Filename of the output movie file without format [default: sink_movie]
     --sink_type=<N>        Particle type of sinks [default: 5]
     --sink_scale=<msun>    Sink particle mass such that apparent sink size is 1 pixel [default: 0.1]
@@ -532,7 +532,7 @@ if __name__ == "__main__":
         MakeImage(len(filenames)-1)
         
     if nproc>1:
-        Pool(nproc).map(MakeImage, (f for f in range(len(filenames))))
+        Pool(nproc).map(MakeImage, (f for f in range(len(filenames))), chunksize=1)
     else:
         [MakeImage(i) for i in range(len(filenames))]
 
