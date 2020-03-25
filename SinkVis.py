@@ -17,7 +17,8 @@ Options:
     --np=<N>               Number of processors to run on [default: 1]
     --res=<N>              Image resolution [default: 512]
     --only_movie           Only the movie is saved, the images are removed at the end
-    --no_movie             Does not create a movie, only makes images
+    --no_movie             Does not create a movie, only makes images (legacy, default behavior now is not to make a movie)
+    --make_movie           Also makes movie
     --fps=<fps>            Frame per second for movie [default: 24]
     --movie_name=<name>    Filename of the output movie file without format [default: sink_movie]
     --sink_type=<N>        Particle type of sinks [default: 5]
@@ -447,7 +448,7 @@ def MakeMovie():
 
 def Sinkvis_input(files="snapshot_000.hdf5", rmax=False, full_box=False, center=[0,0,0],limits=[0,0],Tlimits=[0,0],\
                 interp_fac=1, np=1,res=500, only_movie=False, fps=20, movie_name="sink_movie",\
-                center_on_star=0, N_high=1, Tcmap="inferno", cmap="viridis", no_movie=True, outputfolder="output",\
+                center_on_star=0, N_high=1, Tcmap="inferno", cmap="viridis", no_movie=True,make_movie=False, outputfolder="output",\
                 plot_T_map=True, sink_scale=0.1, sink_type=5, galunits=False,name_addition="",center_on_ID=0,no_pickle=False, no_timestamp=False,\
                 no_size_scale=False, center_on_densest=False, draw_axes=False, remake_only=False, rescale_hsml=1.0):
     if (not isinstance(files, list)):
@@ -476,6 +477,7 @@ def Sinkvis_input(files="snapshot_000.hdf5", rmax=False, full_box=False, center=
         "--Tcmap": Tcmap,
         "--cmap": cmap,
         "--no_movie": no_movie,
+        "--make_movie": make_movie,
         "--outputfolder": outputfolder,
         "--plot_T_map": plot_T_map,
         "--name_addition": name_addition,
@@ -523,7 +525,12 @@ if __name__ == "__main__":
     Tcmap = arguments["--Tcmap"]
     only_movie = arguments["--only_movie"]
     galunits = arguments["--galunits"]
-    no_movie = arguments["--no_movie"]
+    #no_movie = arguments["--no_movie"]
+    make_movie = arguments["--make_movie"]
+    if make_movie:
+        no_movie = False
+    else:
+        no_movie = True
     plot_T_map = arguments["--plot_T_map"]
     no_pickle = arguments["--no_pickle"]
     remake_only = arguments["--remake_only"]
