@@ -422,8 +422,8 @@ def MakeMovie():
         framefile="frames.txt"
         moviefilename=movie_name
     #Use ffmpeg to create movie
-    open(framefile,'w').write('\n'.join(["file '%s'"%f for f in filenames]))
-    os.system("ffmpeg -y -r " + str(fps) + " -f concat -i frames.txt  -vb 20M -pix_fmt yuv420p  -q:v 0 -vcodec mpeg4 " + moviefilename + ".mp4")
+    open(framefile,'w').write('\n'.join(["file '%s'"%os.path.basename(f) for f in filenames]))
+    os.system("ffmpeg -y -r " + str(fps) + " -f concat -i "+framefile+" -vb 20M -pix_fmt yuv420p  -q:v 0 -vcodec mpeg4 " + moviefilename + ".mp4")
     #Erase files, leave movie only
     if only_movie:
         for i in filenames:
