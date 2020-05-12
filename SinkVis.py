@@ -149,10 +149,14 @@ def MakeImage(i):
         m1s = mass_unit*np.array(load_from_snapshot("Masses",sink_type,datafolder,snapnum1))
         sink_IDs_to_center_on=id1s[m1s.argsort()[-N_high:]] #choose the N_high most massive
     for sink_ID in sink_IDs_to_center_on:
-        pickle_filename = "Sinkvis_snap%d_%d_%d_r%g_res%d_c%g_%g_%g_0_%d_%s"%(snapnum1,0,n_interp,r,res,center[0],center[1],center[2],sink_ID,arguments["--dir"])+rescale_text+".pickle"
-        if outputfolder:
-            pickle_filename=outputfolder+'/'+pickle_filename
-        if not os.path.exists(pickle_filename):
+        #Check if all relevant pickle files exist
+        all_pickle_exist = True
+        for k in range(n_interp):
+            pickle_filename = "Sinkvis_snap%d_%d_%d_r%g_res%d_c%g_%g_%g_0_%d_%s"%(snapnum1,k,n_interp,r,res,center[0],center[1],center[2],sink_ID,arguments["--dir"])+rescale_text+".pickle"
+            if outputfolder:
+                pickle_filename=outputfolder+'/'+pickle_filename
+            all_pickle_exist = all_pickle_exist & os.path.exists(pickle_filename)
+        if not all_pickle_exist:
             if remake_only:
                 print(pickle_filename+" does not exist, returning...")
                 return
@@ -579,6 +583,5 @@ if __name__ == "__main__":
         Pool(nproc).map(MakeImage, (f for f in range(len(filenames))), chunksize=1)
     else:
         [MakeImage(i) for i in range(len(filenames))]
-
     if (len(filenames) > 1 and (not no_movie) ): 
         MakeMovie() # only make movie if plotting multiple files
