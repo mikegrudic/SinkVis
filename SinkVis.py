@@ -156,6 +156,13 @@ def MakeImage(i):
             if outputfolder:
                 pickle_filename=outputfolder+'/'+pickle_filename
             all_pickle_exist = all_pickle_exist & os.path.exists(pickle_filename)
+        if (all_pickle_exist and plot_T_map):
+            #We have the files but we should check whether they have temperature data. If not we are redoing them
+                infile = open(pickle_filename, 'rb') 
+                temp = pickle.load(infile)
+                infile.close()
+                Tmap_present = np.max(np.abs(temp[3])) #it is zero if we saved an empty array
+                all_pickle_exist = all_pickle_exist and Tmap_present
         if not all_pickle_exist:
             if remake_only:
                 print(pickle_filename+" does not exist, returning...")
