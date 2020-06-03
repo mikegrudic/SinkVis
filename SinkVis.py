@@ -17,7 +17,7 @@ Options:
     --np=<N>               Number of processors to run on [default: 1]
     --res=<N>              Image resolution [default: 512]
     --v_res=<N>            Resolution for overplotted velocity field if plot_v_map is on [default: 32]
-    --velocity_scale       Scale for the quivers when using plot_v_map, in m/s [default: 1000]
+    --velocity_scale=<f>   Scale for the quivers when using plot_v_map, in m/s [default: 1000]
     --slice_only           Calculation is only done on particles within a box of 2*rmax size around the center (mostly for zoom-ins)
     --only_movie           Only the movie is saved, the images are removed at the end
     --no_movie             Does not create a movie, only makes images (legacy, default behavior now is not to make a movie)
