@@ -16,7 +16,8 @@ Options:
     --interp_fac=<N>       Number of interpolating frames per snapshot [default: 1]
     --np=<N>               Number of processors to run on [default: 1]
     --res=<N>              Image resolution [default: 512]
-    --v_res=<N>            Resolution for overplotted velocity field if plot_v_map is on [default: 128]
+    --v_res=<N>            Resolution for overplotted velocity field if plot_v_map is on [default: 32]
+    --velocity_scale       Scale for the quivers when using plot_v_map, in m/s [default: 1000]
     --slice_only           Calculation is only done on particles within a box of 2*rmax size around the center (mostly for zoom-ins)
     --only_movie           Only the movie is saved, the images are removed at the end
     --no_movie             Does not create a movie, only makes images (legacy, default behavior now is not to make a movie)
@@ -482,8 +483,8 @@ def MakeImage(i):
                     data = plt.imread(fname)
                     fig, ax = plt.subplots()
                     ax.imshow( data, extent=(xlim[0],xlim[1],ylim[0],ylim[1]) )
-                    print(np.mean(np.linalg.norm(v_field,axis=2)))
-                    quiver_scale=v_res/4*np.mean(np.linalg.norm(v_field,axis=2))
+                    #quiver_scale=v_res/4*np.mean(np.linalg.norm(v_field,axis=2))
+                    quiver_scale=v_res/4*velocity_scale
                     x = np.linspace(xlim[0],xlim[1],num=v_res)
                     y = np.linspace(ylim[0],ylim[1],num=v_res)
                     ax.quiver(x,y,v_field[:,:,0],v_field[:,:,1],color='k',scale=quiver_scale,scale_units='inches',units='xy',angles='xy')
@@ -541,9 +542,9 @@ def MakeMovie():
             
 
 def Sinkvis_input(files="snapshot_000.hdf5", rmax=False, full_box=False, center=[0,0,0],limits=[0,0],Tlimits=[0,0],\
-                interp_fac=1, np=1,res=512,v_res=128, only_movie=False, fps=20, movie_name="sink_movie",\
+                interp_fac=1, np=1,res=512,v_res=32, only_movie=False, fps=20, movie_name="sink_movie",\
                 center_on_star=0, N_high=1, Tcmap="inferno", cmap="viridis", no_movie=True,make_movie=False, outputfolder="output",\
-                plot_T_map=True,plot_v_map=False, sink_scale=0.1, sink_type=5, galunits=False,name_addition="",center_on_ID=0,no_pickle=False, no_timestamp=False,slice_only=False,\
+                plot_T_map=True,plot_v_map=False, sink_scale=0.1, sink_type=5, galunits=False,name_addition="",center_on_ID=0,no_pickle=False, no_timestamp=False,slice_only=False,velocity_scale=1000,\
                 no_size_scale=False, center_on_densest=False, draw_axes=False, remake_only=False, rescale_hsml=1.0):
     if (not isinstance(files, list)):
         files=[files]
@@ -558,6 +559,7 @@ def Sinkvis_input(files="snapshot_000.hdf5", rmax=False, full_box=False, center=
         "--np": np,
         "--res": res,
         "--v_res": res,
+        "--velocity_scale": velocity_scale,
         "--only_movie": only_movie,
         "--slice_only": slice_only,
         "--no_pickle": no_pickle,
@@ -638,6 +640,7 @@ if __name__ == "__main__":
     draw_axes = arguments["--draw_axes"]
     no_size_scale = arguments["--no_size_scale"]
     fps = float(arguments["--fps"])
+    velocity_scale = float(arguments["--velocity_scale"]) 
     rescale_hsml = float(arguments["--rescale_hsml"])
     highlight_wind = float(arguments["--highlight_wind"])
     movie_name = arguments["--movie_name"]
