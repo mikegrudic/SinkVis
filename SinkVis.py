@@ -18,7 +18,7 @@ Options:
     --res=<N>              Image resolution [default: 512]
     --v_res=<N>            Resolution for overplotted velocity field if plot_v_map is on [default: 32]
     --velocity_scale=<f>   Scale for the quivers when using plot_v_map, in m/s [default: 1000]
-    --slice_only           Calculation is only done on particles within a box of 2*rmax size around the center (mostly for zoom-ins)
+    --slice_height=<pc>    Calculation is only done on particles within a box of 2*slice_height size around the center (mostly for zoom-ins), no slicing if set to zero [default 0]
     --only_movie           Only the movie is saved, the images are removed at the end
     --no_movie             Does not create a movie, only makes images (legacy, default behavior now is not to make a movie)
     --make_movie           Also makes movie
@@ -188,19 +188,20 @@ def MakeImage(i):
                 v1s, v2s = CoordTransform(v1s), CoordTransform(v2s)
                 # take only the particles that are in both snaps
                 common_sink_ids = np.intersect1d(id1s,id2s)
+                if slice_height:
+                    star_center1 = np.zeros(3)
+                    star_center2 = np.zeros(3)
+                    if sink_ID:
+                        star_center1 = np.squeeze(x1s[id1s==sink_ID]-boxsize/2)
+                        star_center2 = np.squeeze(x2s[id2s==sink_ID]-boxsize/2)
+                    #Find which particles are within the slice in at least on snapshot and keep those only
+                    dxs = np.abs(x1s-star_center1-center-boxsize/2)
+                    ids_in_slice1 = id1s[(dxs[:,2]<=slice_height)]
+                    dxs = np.abs(x2s-star_center2-center-boxsize/2)
+                    ids_in_slice2 = id2s[(dxs[:,2]<=slice_height)]
+                    common_sink_ids = np.intersect1d(common_sink_ids,np.union1d(ids_in_slice1,ids_in_slice2))
                 idx1 = np.in1d(np.sort(id1s),common_sink_ids)
                 idx2 = np.in1d(np.sort(id2s),common_sink_ids)
-                if slice_only:
-                    star_center = np.zeros(3)
-                    if sink_ID:
-                        star_center = np.squeeze(x1s[id1s==sink_ID]-boxsize/2)
-                    #Find which particles are within the slice and keep those only
-                    dxs = np.abs(x1s-star_center-center-boxsize/2)
-                    in_slice1 = (dxs[:,0]<=r) & (dxs[:,1]<=r) & (dxs[:,2]<=r)
-                    idx1 = idx1 & in_slice1
-                    dxs = np.abs(x2s-star_center-center-boxsize/2)
-                    in_slice2 = (dxs[:,0]<=r) & (dxs[:,1]<=r) & (dxs[:,2]<=r)
-                    idx2 = idx2 & in_slice2
                 x1s = x1s[idx1]; m1s = m1s[idx1]; v1s = v1s[idx1];
                 x2s = x2s[idx2]; m2s = m2s[idx2]; v2s = v2s[idx2];
                 m_star = m2s
@@ -263,19 +264,20 @@ def MakeImage(i):
                 m1, m2 = mass_unit*np.array(load_from_snapshot("Masses",0,datafolder,snapnum1))[id1_order], mass_unit*np.array(load_from_snapshot("Masses",0,datafolder,snapnum2))[id2_order]
                 # take only the particles that are in both snaps
                 common_ids = np.intersect1d(id1,id2)
+                if slice_height:
+                    if not sink_ID:
+                        star_center1 = np.zeros(3)
+                        star_center2 = np.zeros(3)
+                    #Find which particles are within the slice in at least on snapshot and keep those only
+                    max_hsml_dist=5
+                    dx = np.abs(x1-star_center1)-max_hsml_dist*h1[:,None]
+                    ids_in_slice1 = id1[(dx[:,2]<=slice_height)]
+                    dx = np.abs(x2-star_center2)-max_hsml_dist*h2[:,None]
+                    ids_in_slice2 = id2[(dx[:,2]<=slice_height)]
+                    common_ids = np.intersect1d(common_ids,np.union1d(ids_in_slice1,ids_in_slice2))
+                    ids_in_slice1=0; ids_in_slice2=0; dx=0 #unload
                 idx1 = np.in1d(np.sort(id1),common_ids)
                 idx2 = np.in1d(np.sort(id2),common_ids)
-                if slice_only:
-                    if not sink_ID:
-                        star_center = np.zeros(3)
-                    #Find which particles are within the slice and keep those only
-                    dx = np.abs(x1-star_center)
-                    in_slice = (dx[:,0]<=r) & (dx[:,1]<=r) & (dx[:,2]<=r)
-                    idx1 = idx1 & in_slice
-                    dx = np.abs(x1-star_center)
-                    in_slice = (dx[:,0]<=r) & (dx[:,1]<=r) & (dx[:,2]<=r)
-                    idx2 = idx2 & in_slice
-                    in_slice=0; dx=0 #unload
                 x1 = x1[idx1]; u1 = u1[idx1]; h1 = h1[idx1]*rescale_hsml; m1 = m1[idx1]; id1 = np.sort(id1)[idx1]; v1 = v1[idx1];
                 x2 = x2[idx2]; u2 = u2[idx2]; h2 = h2[idx2]*rescale_hsml; m2 = m2[idx2]; id2 = np.sort(id2)[idx2]; v2 = v2[idx2];
                 m = m2 # mass to actually use in render
@@ -300,8 +302,8 @@ def MakeImage(i):
                 star_center = np.zeros(3)
                 star_v_center = np.zeros(3)
                 if sink_ID:
-                    star_center = np.squeeze(x_star[common_sink_ids==sink_ID]-boxsize/2)
-                    star_v_center = np.squeeze(v_star[common_sink_ids==sink_ID])
+                    star_center = np.squeeze(x_star[common_sink_ids==sink_ID,:]-boxsize/2)
+                    star_v_center = np.squeeze(v_star[common_sink_ids==sink_ID,:])
                 if numpart_total[0]:
                     x = float(k)/n_interp * x2 + (n_interp-float(k))/n_interp * x1
                     #correct for periodic box
@@ -359,7 +361,7 @@ def MakeImage(i):
                 infile.close()
                 x_star = temp[0]; m_star = temp[1]; sigma_gas = temp[2]; Tmap_gas = temp[3]; logTmap_gas = temp[4]; time = temp[5]; numpart_total = temp[6];
                 star_center = temp[7]
-                if len(temp>=9):
+                if (len(temp)>=9):
                     v_field = temp[8]
                 else:
                     v_field = np.zeros( (v_res,v_res,2) )
@@ -491,6 +493,7 @@ def MakeImage(i):
                     ax.axis('off')
                     fig.set_size_inches(8, 8)
                     fig.savefig(fname,dpi=int(gridres/8))
+                    plt.close(fig)
                     
                 if draw_axes:
                     xlim = [boxsize/2.0+center[0]+star_center[0]-r,boxsize/2.0+center[0]+star_center[0]+r]
@@ -503,6 +506,7 @@ def MakeImage(i):
                     fig.set_size_inches(6, 6)
                     #plt.figure(num=fig.number, figsize=(1.3*gridres/150, 1.2*gridres/150), dpi=550)
                     fig.savefig(fname,dpi=int(gridres/5))
+                    plt.close(fig)
             
 
 def MakeMovie():
@@ -544,7 +548,7 @@ def MakeMovie():
 def Sinkvis_input(files="snapshot_000.hdf5", rmax=False, full_box=False, center=[0,0,0],limits=[0,0],Tlimits=[0,0],\
                 interp_fac=1, np=1,res=512,v_res=32, only_movie=False, fps=20, movie_name="sink_movie",\
                 center_on_star=0, N_high=1, Tcmap="inferno", cmap="viridis", no_movie=True,make_movie=False, outputfolder="output",\
-                plot_T_map=True,plot_v_map=False, sink_scale=0.1, sink_type=5, galunits=False,name_addition="",center_on_ID=0,no_pickle=False, no_timestamp=False,slice_only=False,velocity_scale=1000,\
+                plot_T_map=True,plot_v_map=False, sink_scale=0.1, sink_type=5, galunits=False,name_addition="",center_on_ID=0,no_pickle=False, no_timestamp=False,slice_height=0,velocity_scale=1000,\
                 no_size_scale=False, center_on_densest=False, draw_axes=False, remake_only=False, rescale_hsml=1.0):
     if (not isinstance(files, list)):
         files=[files]
@@ -561,7 +565,7 @@ def Sinkvis_input(files="snapshot_000.hdf5", rmax=False, full_box=False, center=
         "--v_res": res,
         "--velocity_scale": velocity_scale,
         "--only_movie": only_movie,
-        "--slice_only": slice_only,
+        "--slice_height": slice_height,
         "--no_pickle": no_pickle,
         "--fps": fps,
         "--movie_name": movie_name,
@@ -627,7 +631,7 @@ if __name__ == "__main__":
     galunits = arguments["--galunits"]
     #no_movie = arguments["--no_movie"]
     make_movie = arguments["--make_movie"]
-    slice_only = arguments["--slice_only"]
+    slice_height = float(arguments["--slice_height"])
     if make_movie:
         no_movie = False
     else:
@@ -670,8 +674,8 @@ if __name__ == "__main__":
     else:
         rescale_text=''
     slice_text=''
-    if slice_only:
-        slice_text='_slice'
+    if slice_height:
+        slice_text='_slice%g'%(slice_height)
     
     if outputfolder:
         if not os.path.exists(outputfolder):
