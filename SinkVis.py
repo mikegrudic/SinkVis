@@ -593,87 +593,89 @@ def Sinkvis_input(files="snapshot_000.hdf5", rmax=False, full_box=False, center=
         }
     return arguments
 
-if __name__ == "__main__":
-    arguments = docopt(__doc__)
-
-    filenames = natsorted(arguments["<files>"])
+def main(input):
+    global arguments; arguments=input
+    global filenames; filenames = natsorted(arguments["<files>"])
     if os.path.isdir(filenames[0]):
         namestring="snapdir"
     else:
         namestring="snapshot"
-    file_numbers = [int(re.search(namestring+'_\d*', f).group(0).replace(namestring+'_','')) for f in filenames]
-    datafolder=(filenames[0].split(namestring+"_")[0])
+    global file_numbers; file_numbers = [int(re.search(namestring+'_\d*', f).group(0).replace(namestring+'_','')) for f in filenames]
+    global datafolder; datafolder=(filenames[0].split(namestring+"_")[0])
     if not len(datafolder):
         datafolder="./"
-    boxsize=load_from_snapshot("BoxSize",0,datafolder,file_numbers[0])
+    global boxsize; boxsize=load_from_snapshot("BoxSize",0,datafolder,file_numbers[0])
     full_box_flag = arguments["--full_box"]
+    global r;
     if full_box_flag:
         r = boxsize/2.0
     elif arguments["--rmax"]:
         r = float(arguments["--rmax"])
     else:
         r = boxsize/10
-    name_addition = arguments["--name_addition"] if arguments["--name_addition"] else ""
-    center = np.array([float(c) for c in arguments["--c"].split(',')])
-    limits = np.array([float(c) for c in arguments["--limits"].split(',')])
-    Tlimits = np.array([float(c) for c in arguments["--Tlimits"].split(',')])
-    logTlimits = np.zeros(2)
+    global name_addition; name_addition = arguments["--name_addition"] if arguments["--name_addition"] else ""
+    global center; center = np.array([float(c) for c in arguments["--c"].split(',')])
+    global limits; limits = np.array([float(c) for c in arguments["--limits"].split(',')])
+    global Tlimits; Tlimits = np.array([float(c) for c in arguments["--Tlimits"].split(',')])
+    global logTlimits; logTlimits = np.zeros(2)
     if Tlimits[0]:
         #used for log T plot
         logTlimits[:] = np.log10(Tlimits[:]) 
-    res = int(arguments["--res"])
-    v_res = int(arguments["--v_res"])
+    global res; res = int(arguments["--res"])
+    global v_res; v_res = int(arguments["--v_res"])
     nproc = int(arguments["--np"])
-    n_interp = int(arguments["--interp_fac"])
-    cmap = arguments["--cmap"]
-    Tcmap = arguments["--Tcmap"]
-    only_movie = arguments["--only_movie"]
-    galunits = arguments["--galunits"]
+    global n_interp; n_interp = int(arguments["--interp_fac"])
+    global cmap; cmap = arguments["--cmap"]
+    global Tcmap; Tcmap = arguments["--Tcmap"]
+    global only_movie; only_movie = arguments["--only_movie"]
+    global galunits; galunits = arguments["--galunits"]
+    global no_movie
     #no_movie = arguments["--no_movie"]
     make_movie = arguments["--make_movie"]
-    slice_height = float(arguments["--slice_height"])
+    global slice_height; slice_height = float(arguments["--slice_height"])
     if make_movie:
         no_movie = False
     else:
         no_movie = True
-    plot_T_map = arguments["--plot_T_map"]
-    plot_v_map = arguments["--plot_v_map"]
-    no_pickle = arguments["--no_pickle"]
-    remake_only = arguments["--remake_only"]
-    no_timestamp = arguments["--no_timestamp"]
-    draw_axes = arguments["--draw_axes"]
-    no_size_scale = arguments["--no_size_scale"]
-    fps = float(arguments["--fps"])
-    velocity_scale = float(arguments["--velocity_scale"]) 
-    rescale_hsml = float(arguments["--rescale_hsml"])
-    highlight_wind = float(arguments["--highlight_wind"])
-    movie_name = arguments["--movie_name"]
-    outputfolder = arguments["--outputfolder"]
-    sink_type = int(arguments["--sink_type"])
-    sink_type_text="PartType" + str(sink_type)
-    sink_scale = float(arguments["--sink_scale"])
-    center_on_star = 1 if arguments["--center_on_star"] else 0
-    center_on_ID = int(arguments["--center_on_ID"]) if arguments["--center_on_ID"] else 0
-    N_high = int(arguments["--N_high"])
-    center_on_densest = 1 if arguments["--center_on_densest"] else 0
-    L = r*2
-    length_unit = (1e3 if galunits else 1.) #in pc
-    velocity_unit = (1e3 if galunits else 1.) #in m/s
-    mass_unit = (1e10 if galunits else 1.) #in Msun
-    pc_to_AU = 206265.0
+    global plot_T_map; plot_T_map = arguments["--plot_T_map"]
+    global plot_v_map; plot_v_map = arguments["--plot_v_map"]
+    global no_pickle; no_pickle = arguments["--no_pickle"]
+    global remake_only; remake_only = arguments["--remake_only"]
+    global no_timestamp; no_timestamp = arguments["--no_timestamp"]
+    global draw_axes; draw_axes = arguments["--draw_axes"]
+    global no_size_scale; no_size_scale = arguments["--no_size_scale"]
+    global fps; fps = float(arguments["--fps"])
+    global velocity_scale; velocity_scale = float(arguments["--velocity_scale"]) 
+    global rescale_hsml; rescale_hsml = float(arguments["--rescale_hsml"])
+    global highlight_wind; highlight_wind = float(arguments["--highlight_wind"])
+    global movie_name; movie_name = arguments["--movie_name"]
+    global outputfolder; outputfolder = arguments["--outputfolder"]
+    global sink_type; sink_type = int(arguments["--sink_type"])
+    global sink_type_text; sink_type_text="PartType" + str(sink_type)
+    global sink_scale; sink_scale = float(arguments["--sink_scale"])
+    global center_on_star; center_on_star = 1 if arguments["--center_on_star"] else 0
+    global center_on_ID; center_on_ID = int(arguments["--center_on_ID"]) if arguments["--center_on_ID"] else 0
+    global N_high; N_high = int(arguments["--N_high"])
+    global center_on_densest; center_on_densest = 1 if arguments["--center_on_densest"] else 0
+    global L; L = r*2
+    global length_unit; length_unit = (1e3 if galunits else 1.) #in pc
+    global velocity_unit; velocity_unit = (1e3 if galunits else 1.) #in m/s
+    global mass_unit; mass_unit = (1e10 if galunits else 1.) #in Msun
+    global pc_to_AU; pc_to_AU = 206265.0
     #i = 0
     boxsize *= length_unit
     r *= length_unit
     L *= length_unit
 
-    font = ImageFont.truetype("LiberationSans-Regular.ttf", res//12) 
+    global font; font = ImageFont.truetype("LiberationSans-Regular.ttf", res//12) 
     
     #Only change the pickle filename if we rescale
+    global rescale_text
     if (rescale_hsml!=1.0):
         rescale_text='_%g'%(rescale_hsml)
     else:
         rescale_text=''
-    slice_text=''
+    global slice_text; slice_text=''
     if slice_height:
         slice_text='_slice%g'%(slice_height)
     
@@ -692,3 +694,7 @@ if __name__ == "__main__":
         [MakeImage(i) for i in range(len(filenames))]
     if (len(filenames) > 1 and (not no_movie) ): 
         MakeMovie() # only make movie if plotting multiple files
+        
+if __name__ == "__main__":
+    arguments = docopt(__doc__)
+    main(arguments)
