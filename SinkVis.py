@@ -545,7 +545,7 @@ def MakeMovie():
         os.remove(framefile)
             
 
-def Sinkvis_input(files="snapshot_000.hdf5", rmax=False, full_box=False, center=[0,0,0],limits=[0,0],Tlimits=[0,0],\
+def make_input(files="snapshot_000.hdf5", rmax=False, full_box=False, center=[0,0,0],limits=[0,0],Tlimits=[0,0],\
                 interp_fac=1, np=1,res=512,v_res=32, only_movie=False, fps=20, movie_name="sink_movie",\
                 center_on_star=0, N_high=1, Tcmap="inferno", cmap="viridis", no_movie=True,make_movie=False, outputfolder="output",\
                 plot_T_map=True,plot_v_map=False, sink_scale=0.1, sink_type=5, galunits=False,name_addition="",center_on_ID=0,no_pickle=False, no_timestamp=False,slice_height=0,velocity_scale=1000,\
