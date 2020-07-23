@@ -500,9 +500,11 @@ def MakeImage(i):
                     ylim = [boxsize/2.0+center[1]+star_center[1]-r,boxsize/2.0+center[1]+star_center[1]+r]
                     data = plt.imread(fname)
                     fig, ax = plt.subplots()
-                    ax.imshow( data, extent=(xlim[0],xlim[1],ylim[0],ylim[1]) )
-                    ax.set_xlabel("X [pc]")
-                    ax.set_ylabel("Y [pc]")
+                    #In the plots x and y are flipped for some reason, so we need to switch here
+                    ax.imshow( data, extent=(ylim[0],ylim[1],xlim[0],xlim[1]) )
+                    axes_dirs = np.roll(['X','Y','Z'], {'z': 0, 'y': 1, 'x': 2}[arguments["--dir"]])
+                    ax.set_xlabel(axes_dirs[0]+" [pc]")
+                    ax.set_ylabel(axes_dirs[1]+" [pc]")
                     fig.set_size_inches(6, 6)
                     #plt.figure(num=fig.number, figsize=(1.3*gridres/150, 1.2*gridres/150), dpi=550)
                     fig.savefig(fname,dpi=int(gridres/5))
@@ -545,11 +547,11 @@ def MakeMovie():
         os.remove(framefile)
             
 
-def make_input(files="snapshot_000.hdf5", rmax=False, full_box=False, center=[0,0,0],limits=[0,0],Tlimits=[0,0],\
-                interp_fac=1, np=1,res=512,v_res=32, only_movie=False, fps=20, movie_name="sink_movie",\
+def make_input(files=["snapshot_000.hdf5"], rmax=False, full_box=False, center=[0,0,0],limits=[0,0],Tlimits=[0,0],\
+                interp_fac=1, np=1,res=512,v_res=32, only_movie=False, fps=20, movie_name="sink_movie",dir='z',\
                 center_on_star=0, N_high=1, Tcmap="inferno", cmap="viridis", no_movie=True,make_movie=False, outputfolder="output",\
                 plot_T_map=True,plot_v_map=False, sink_scale=0.1, sink_type=5, galunits=False,name_addition="",center_on_ID=0,no_pickle=False, no_timestamp=False,slice_height=0,velocity_scale=1000,\
-                no_size_scale=False, center_on_densest=False, draw_axes=False, remake_only=False, rescale_hsml=1.0):
+                no_size_scale=False, center_on_densest=False, draw_axes=False, remake_only=False, rescale_hsml=1.0, highlight_wind=1.0):
     if (not isinstance(files, list)):
         files=[files]
     arguments={
@@ -557,6 +559,7 @@ def make_input(files="snapshot_000.hdf5", rmax=False, full_box=False, center=[0,
         "--rmax": rmax,
         "--full_box": full_box,
         "--c": str(center[0])+","+str(center[1])+","+str(center[2]),
+        "--dir": dir,
         "--limits": str(limits[0])+","+str(limits[1]),
         "--Tlimits": str(Tlimits[0])+","+str(Tlimits[1]),
         "--interp_fac": interp_fac,
@@ -615,6 +618,8 @@ def main(input):
         r = boxsize/10
     global name_addition; name_addition = arguments["--name_addition"] if arguments["--name_addition"] else ""
     global center; center = np.array([float(c) for c in arguments["--c"].split(',')])
+    #Cycle coordinates to match projection
+    center = np.roll(center, {'z': 0, 'y': 1, 'x': 2}[arguments["--dir"]], axis=0)
     global limits; limits = np.array([float(c) for c in arguments["--limits"].split(',')])
     global Tlimits; Tlimits = np.array([float(c) for c in arguments["--Tlimits"].split(',')])
     global logTlimits; logTlimits = np.zeros(2)
