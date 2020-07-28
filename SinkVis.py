@@ -500,8 +500,7 @@ def MakeImage(i):
                     ylim = [boxsize/2.0+center[1]+star_center[1]-r,boxsize/2.0+center[1]+star_center[1]+r]
                     data = plt.imread(fname)
                     fig, ax = plt.subplots()
-                    #In the plots x and y are flipped for some reason, so we need to switch here
-                    ax.imshow( data, extent=(ylim[0],ylim[1],xlim[0],xlim[1]) )
+                    ax.imshow( data, extent=(xlim[0],xlim[1],ylim[0],ylim[1]) )
                     axes_dirs = np.roll(['X','Y','Z'], {'z': 0, 'y': 1, 'x': 2}[arguments["--dir"]])
                     ax.set_xlabel(axes_dirs[0]+" [pc]")
                     ax.set_ylabel(axes_dirs[1]+" [pc]")
