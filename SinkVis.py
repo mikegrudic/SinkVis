@@ -42,6 +42,7 @@ Options:
     --remake_only          Flag, if set SinkVis will only used already calculated pickle files, used to remake plots
     --rescale_hsml=<f>     Factor by which the smoothing lengths of the particles are rescaled [default: 1]
     --highlight_wind=<f>   Factor by which to increase wind particle masses if you want to highlight them [default: 1]
+    --smooth_center=<Ns>   If not 0 and SinkVis is supposed to center on a particle (e.g. with center_on_ID) then the center coordinates are smoothed across Ns snapshots, [default: 0]
 """
 
 #Example
@@ -63,7 +64,7 @@ from docopt import docopt
 from glob import glob
 import os
 from sys import argv
-from load_from_snapshot import load_from_snapshot
+from load_from_snapshot import load_from_snapshot,check_if_filename_exists
 import re
 import pickle
 
@@ -125,7 +126,7 @@ def find_sink_in_densest_gas(snapnum):
         return ids[-N_high:]
             
 def CoordTransform(x):
-    return np.roll(x, {'z': 0, 'y': 1, 'x': 2}[arguments["--dir"]], axis=1)
+    return x #np.roll(x, {'z': 0, 'y': 1, 'x': 2}[arguments["--dir"]], axis=1)
 
 def StarColor(mass_in_msun,cmap):
     if cmap=='afmhot':
@@ -156,7 +157,7 @@ def MakeImage(i):
         #Check if all relevant pickle files exist
         all_pickle_exist = True
         for k in range(n_interp):
-            pickle_filename = "Sinkvis_snap%d_%d_%d_r%g_res%d_c%g_%g_%g_0_%d_%s"%(snapnum1,k,n_interp,r,res,center[0],center[1],center[2],sink_ID,arguments["--dir"])+rescale_text+slice_text+".pickle"
+            pickle_filename = "Sinkvis_snap%d_%d_%d_r%g_res%d_c%g_%g_%g_0_%d_%s"%(snapnum1,k,n_interp,r,res,center[0],center[1],center[2],sink_ID,arguments["--dir"])+rescale_text+slice_text+smooth_text+".pickle"
             if outputfolder:
                 pickle_filename=outputfolder+'/'+pickle_filename
             all_pickle_exist = all_pickle_exist & os.path.exists(pickle_filename)
@@ -290,7 +291,7 @@ def MakeImage(i):
                 
             time = load_from_snapshot("Time",0,datafolder,snapnum1)
         for k in range(n_interp):
-            pickle_filename = "Sinkvis_snap%d_%d_%d_r%g_res%d_c%g_%g_%g_0_%d_%s"%(snapnum1,k,n_interp,r,res,center[0],center[1],center[2],sink_ID,arguments["--dir"])+rescale_text+slice_text+".pickle"
+            pickle_filename = "Sinkvis_snap%d_%d_%d_r%g_res%d_c%g_%g_%g_0_%d_%s"%(snapnum1,k,n_interp,r,res,center[0],center[1],center[2],sink_ID,arguments["--dir"])+rescale_text+slice_text+smooth_text+".pickle"
             if outputfolder:
                 pickle_filename=outputfolder+'/'+pickle_filename
             if not os.path.exists(pickle_filename):
@@ -304,6 +305,28 @@ def MakeImage(i):
                 if sink_ID:
                     star_center = np.squeeze(x_star[common_sink_ids==sink_ID,:]-boxsize/2)
                     star_v_center = np.squeeze(v_star[common_sink_ids==sink_ID,:])
+                    if smooth_center:
+                        #Try to get more sink data and use it to smooth
+                        star_center_coords=[]; snap_vals=[];
+                        for snum in (snapnum1+np.arange(-smooth_center,smooth_center)):
+                            if check_if_filename_exists(datafolder,snum)[0] != 'NULL': #snap exists
+                                ids_temp = np.array(load_from_snapshot("ParticleIDs",sink_type,datafolder,snum))
+                                if np.any(ids_temp==sink_ID): #the sink we want to center on is present
+                                    xs_temp = length_unit*np.array(load_from_snapshot("Coordinates",sink_type,datafolder,snum))
+                                    star_center_temp = np.squeeze(xs_temp[ids_temp==sink_ID,:]-boxsize/2)
+                                    star_center_coords.append(star_center_temp)
+                                    snap_vals.append(snum)
+                        star_center_coords = np.array(star_center_coords); snap_vals = np.array(snap_vals)
+                        #Let's fit a line to the motion
+                        xfit = np.poly1d(np.polyfit(snap_vals,star_center_coords[:,0],1))
+                        yfit = np.poly1d(np.polyfit(snap_vals,star_center_coords[:,1],1))
+                        zfit = np.poly1d(np.polyfit(snap_vals,star_center_coords[:,2],1))
+                        #Let's estimate the new center coordinate
+                        star_center_old = star_center+0
+                        star_center[0] = xfit(snapnum1+float(k)/n_interp)
+                        star_center[1] = yfit(snapnum1+float(k)/n_interp)
+                        star_center[2] = zfit(snapnum1+float(k)/n_interp)
+                        print("Smoothing changed centering from %g %g %g to %g %g %g"%(star_center_old[0],star_center_old[1],star_center_old[2],star_center[0],star_center[1],star_center[2]))
                 if numpart_total[0]:
                     x = float(k)/n_interp * x2 + (n_interp-float(k))/n_interp * x1
                     #correct for periodic box
@@ -376,6 +399,7 @@ def MakeImage(i):
             #Gas surface density
             fgas = (np.log10(sigma_gas)-np.log10(limits[0]))/np.log10(limits[1]/limits[0])
             fgas = np.clip(fgas,0,1)
+            fgas = np.flipud(fgas)
             data = plt.get_cmap(cmap)(fgas)
             data = np.clip(data,0,1)
             if plot_T_map:
@@ -473,7 +497,10 @@ def MakeImage(i):
                         star_size = max(1,star_size)
                         p = aggdraw.Brush(StarColor(ms,cmap))
                         X -= boxsize/2 + center
-                        coords = np.concatenate([(X[:2]+r)/(2*r)*gridres-star_size, (X[:2]+r)/(2*r)*gridres+star_size])
+                        norm_coords = (X[:2]+r)/(2*r)*gridres
+                        #Pillow puts the origin in th top left corner, so we need to flip the y axis
+                        norm_coords[1] = gridres - norm_coords[1]
+                        coords = np.concatenate([norm_coords-star_size, norm_coords+star_size])
                         d.ellipse(coords, pen, p)#, fill=(155, 176, 255))
                     d.flush()
                 F.save(fname)
@@ -550,7 +577,7 @@ def make_input(files=["snapshot_000.hdf5"], rmax=False, full_box=False, center=[
                 interp_fac=1, np=1,res=512,v_res=32, only_movie=False, fps=20, movie_name="sink_movie",dir='z',\
                 center_on_star=0, N_high=1, Tcmap="inferno", cmap="viridis", no_movie=True,make_movie=False, outputfolder="output",\
                 plot_T_map=True,plot_v_map=False, sink_scale=0.1, sink_type=5, galunits=False,name_addition="",center_on_ID=0,no_pickle=False, no_timestamp=False,slice_height=0,velocity_scale=1000,\
-                no_size_scale=False, center_on_densest=False, draw_axes=False, remake_only=False, rescale_hsml=1.0, highlight_wind=1.0):
+                no_size_scale=False, center_on_densest=False, draw_axes=False, remake_only=False, rescale_hsml=1.0, smooth_center=False, highlight_wind=1.0):
     if (not isinstance(files, list)):
         files=[files]
     arguments={
@@ -591,6 +618,7 @@ def make_input(files=["snapshot_000.hdf5"], rmax=False, full_box=False, center=[
         "--draw_axes": draw_axes,
         "--remake_only": remake_only,
         "--rescale_hsml": rescale_hsml,
+        "--smooth_center": smooth_center,
         "--highlight_wind": highlight_wind
         }
     return arguments
@@ -659,6 +687,10 @@ def main(input):
     global sink_scale; sink_scale = float(arguments["--sink_scale"])
     global center_on_star; center_on_star = 1 if arguments["--center_on_star"] else 0
     global center_on_ID; center_on_ID = int(arguments["--center_on_ID"]) if arguments["--center_on_ID"] else 0
+    global smooth_center; smooth_center = int(arguments["--smooth_center"])
+    global smooth_text; smooth_text=''
+    if smooth_center:
+        smooth_text = '_smoothed%d'%(smooth_center)
     global N_high; N_high = int(arguments["--N_high"])
     global center_on_densest; center_on_densest = 1 if arguments["--center_on_densest"] else 0
     global L; L = r*2
