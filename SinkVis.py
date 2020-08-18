@@ -291,7 +291,11 @@ def MakeImage(i):
                 
             time = load_from_snapshot("Time",0,datafolder,snapnum1)
         for k in range(n_interp):
-            pickle_filename = "Sinkvis_snap%d_%d_%d_r%g_res%d_c%g_%g_%g_0_%d_%s"%(snapnum1,k,n_interp,r,res,center[0],center[1],center[2],sink_ID,arguments["--dir"])+rescale_text+slice_text+smooth_text+".pickle"
+            if (snapnum1!=snapnum2): #this part is to avoid creating pickle files for interpolating frames for the last snapshot
+                k_in_filename = k
+            else:
+                k_in_filename = 0
+            pickle_filename = "Sinkvis_snap%d_%d_%d_r%g_res%d_c%g_%g_%g_0_%d_%s"%(snapnum1,k_in_filename,n_interp,r,res,center[0],center[1],center[2],sink_ID,arguments["--dir"])+rescale_text+slice_text+smooth_text+".pickle"
             if outputfolder:
                 pickle_filename=outputfolder+'/'+pickle_filename
             if not os.path.exists(pickle_filename):
