@@ -18,6 +18,7 @@ Options:
     --res=<N>              Image resolution [default: 512]
     --v_res=<N>            Resolution for overplotted velocity field if plot_v_map is on [default: 32]
     --velocity_scale=<f>   Scale for the quivers when using plot_v_map, in m/s [default: 1000]
+    --arrow_color=<name>   Color of the velocity arrows if plot_v_map is enabled, [default: white]
     --slice_height=<pc>    Calculation is only done on particles within a box of 2*slice_height size around the center (mostly for zoom-ins), no slicing if set to zero [default: 0]
     --only_movie           Only the movie is saved, the images are removed at the end
     --no_movie             Does not create a movie, only makes images (legacy, default behavior now is not to make a movie)
@@ -520,7 +521,7 @@ def MakeImage(i):
                     quiver_scale=v_res/4*velocity_scale
                     x = np.linspace(xlim[0],xlim[1],num=v_res)
                     y = np.linspace(ylim[0],ylim[1],num=v_res)
-                    ax.quiver(x,y,v_field[:,:,0],v_field[:,:,1],color='k',scale=quiver_scale,scale_units='inches',units='xy',angles='xy')
+                    ax.quiver(x,y,v_field[:,:,0],v_field[:,:,1],color=arrow_color,scale=quiver_scale,scale_units='inches',units='xy',angles='xy')
                     ax.axis('off')
                     fig.set_size_inches(8, 8)
                     fig.savefig(fname,dpi=int(gridres/8))
@@ -580,7 +581,7 @@ def MakeMovie():
 def make_input(files=["snapshot_000.hdf5"], rmax=False, full_box=False, center=[0,0,0],limits=[0,0],Tlimits=[0,0],\
                 interp_fac=1, np=1,res=512,v_res=32, only_movie=False, fps=20, movie_name="sink_movie",dir='z',\
                 center_on_star=0, N_high=1, Tcmap="inferno", cmap="viridis", no_movie=True,make_movie=False, outputfolder="output",\
-                plot_T_map=True,plot_v_map=False, sink_scale=0.1, sink_type=5, galunits=False,name_addition="",center_on_ID=0,no_pickle=False, no_timestamp=False,slice_height=0,velocity_scale=1000,\
+                plot_T_map=True,plot_v_map=False, sink_scale=0.1, sink_type=5, galunits=False,name_addition="",center_on_ID=0,no_pickle=False, no_timestamp=False,slice_height=0,velocity_scale=1000,arrow_color='white',\
                 no_size_scale=False, center_on_densest=False, draw_axes=False, remake_only=False, rescale_hsml=1.0, smooth_center=False, highlight_wind=1.0):
     if (not isinstance(files, list)):
         files=[files]
@@ -597,6 +598,7 @@ def make_input(files=["snapshot_000.hdf5"], rmax=False, full_box=False, center=[
         "--res": res,
         "--v_res": res,
         "--velocity_scale": velocity_scale,
+        "--arrow_color": arrow_color,
         "--only_movie": only_movie,
         "--slice_height": slice_height,
         "--no_pickle": no_pickle,
@@ -700,6 +702,7 @@ def main(input):
     global L; L = r*2
     global length_unit; length_unit = (1e3 if galunits else 1.) #in pc
     global velocity_unit; velocity_unit = (1e3 if galunits else 1.) #in m/s
+    global arrow_color; arrow_color = arguments["--arrow_color"]
     global mass_unit; mass_unit = (1e10 if galunits else 1.) #in Msun
     global pc_to_AU; pc_to_AU = 206265.0
     #i = 0
