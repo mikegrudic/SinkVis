@@ -4,46 +4,51 @@ Usage:
 SinkVis.py <files> ... [options]
 
 Options:
-    -h --help              Show this screen.
-    --rmax=<pc>            Maximum radius of plot window; defaults to box size/10.
-    --dir=<x,y,z>          Coordinate direction to orient the image along - x, y, or z [default: z]
-    --full_box             Sets the plot to the entire box, overrides rmax
-    --c=<cx,cy,cz>         Coordinates of plot window center relative to box center [default: 0.0,0.0,0.0]
-    --limits=<min,max>     Dynamic range of surface density colormap [default: 0,0]
-    --Tlimits=<min,max>    Dynamic range of temperature colormap in K [default: 0,0]
-    --Tcmap=<name>         Name of colormap to use for temperature [default: inferno]
-    --cmap=<name>          Name of colormap to use [default: viridis]
-    --interp_fac=<N>       Number of interpolating frames per snapshot [default: 1]
-    --np=<N>               Number of processors to run on [default: 1]
-    --res=<N>              Image resolution [default: 512]
-    --v_res=<N>            Resolution for overplotted velocity field if plot_v_map is on [default: 32]
-    --velocity_scale=<f>   Scale for the quivers when using plot_v_map, in m/s [default: 1000]
-    --arrow_color=<name>   Color of the velocity arrows if plot_v_map is enabled, [default: white]
-    --slice_height=<pc>    Calculation is only done on particles within a box of 2*slice_height size around the center (mostly for zoom-ins), no slicing if set to zero [default: 0]
-    --only_movie           Only the movie is saved, the images are removed at the end
-    --no_movie             Does not create a movie, only makes images (legacy, default behavior now is not to make a movie)
-    --make_movie           Also makes movie
-    --fps=<fps>            Frame per second for movie [default: 24]
-    --movie_name=<name>    Filename of the output movie file without format [default: sink_movie]
-    --sink_type=<N>        Particle type of sinks [default: 5]
-    --sink_scale=<msun>    Sink particle mass such that apparent sink size is 1 pixel [default: 0.1]
-    --center_on_star       Center image on the N_high most massive sink particles
-    --center_on_densest    Center image on the N_high sinks with the densest gas nearby
-    --N_high=<N>           Number of sinks to center on using the center_on_star or center_on_densest flags [default: 1]
-    --center_on_ID=<ID>    Center image on sink particle with specific ID, does not center if zero [default: 0]
-    --galunits             Use default GADGET units
-    --plot_T_map           Plots both surface density and average temperature maps
-    --plot_v_map           Overplots velocity map on plots
-    --outputfolder=<name>  Specifies the folder to save the images and movies to
-    --name_addition=<name> Extra string to be put after the name of the ouput files, defaults to empty string       
-    --no_pickle            Flag, if set no pickle file is created to make replots faster
-    --no_timestamp         Flag, if set no timestamp will be put on the images
-    --no_size_scale        Flag, if set no size scale will be put on the images
-    --draw_axes            Flag, if set the coordinate axes are added to the figure
-    --remake_only          Flag, if set SinkVis will only used already calculated pickle files, used to remake plots
-    --rescale_hsml=<f>     Factor by which the smoothing lengths of the particles are rescaled [default: 1]
-    --highlight_wind=<f>   Factor by which to increase wind particle masses if you want to highlight them [default: 1]
-    --smooth_center=<Ns>   If not 0 and SinkVis is supposed to center on a particle (e.g. with center_on_ID) then the center coordinates are smoothed across Ns snapshots, [default: 0]
+    -h --help                  Show this screen.
+    --rmax=<pc>                Maximum radius of plot window; defaults to box size/10.
+    --dir=<x,y,z>              Coordinate direction to orient the image along - x, y, or z [default: z]
+    --full_box                 Sets the plot to the entire box, overrides rmax
+    --c=<cx,cy,cz>             Coordinates of plot window center relative to box center [default: 0.0,0.0,0.0]
+    --limits=<min,max>         Dynamic range of surface density colormap [default: 0,0]
+    --Tlimits=<min,max>        Dynamic range of temperature colormap in K [default: 0,0]
+    --energy_limits=<min,max>  Dynamic range of kinetic energy colormap in code units [default: 0,0]
+    --ecmap=<name>             Name of colormap to use for kinetic energy [default: viridis]
+    --Tcmap=<name>             Name of colormap to use for temperature [default: inferno]
+    --cmap=<name>              Name of colormap to use [default: viridis]
+    --interp_fac=<N>           Number of interpolating frames per snapshot [default: 1]
+    --np=<N>                   Number of processors to run on [default: 1]
+    --res=<N>                  Image resolution [default: 512]
+    --v_res=<N>                Resolution for overplotted velocity field if plot_v_map is on [default: 32]
+    --velocity_scale=<f>       Scale for the quivers when using plot_v_map, in m/s [default: 1000]
+    --arrow_color=<name>       Color of the velocity arrows if plot_v_map is enabled, [default: white]
+    --slice_height=<pc>        Calculation is only done on particles within a box of 2*slice_height size around the center (mostly for zoom-ins), no slicing if set to zero [default: 0]
+    --only_movie               Only the movie is saved, the images are removed at the end
+    --no_movie                 Does not create a movie, only makes images (legacy, default behavior now is not to make a movie)
+    --make_movie               Also makes movie
+    --fps=<fps>                Frame per second for movie [default: 24]
+    --movie_name=<name>        Filename of the output movie file without format [default: sink_movie]
+    --sink_type=<N>            Particle type of sinks [default: 5]
+    --sink_scale=<msun>        Sink particle mass such that apparent sink size is 1 pixel for that and all asses below [default: 0.1]
+    --sink_relscale=<f>        Relative size scale of a sink particles at 10xsink_scale to the entire picture, e.g. 0.01 means these stars will be 1% of the entire plotting area, [default: 0.0025]
+    --center_on_star           Center image on the N_high most massive sink particles
+    --center_on_densest        Center image on the N_high sinks with the densest gas nearby
+    --N_high=<N>               Number of sinks to center on using the center_on_star or center_on_densest flags [default: 1]
+    --center_on_ID=<ID>        Center image on sink particle with specific ID, does not center if zero [default: 0]
+    --galunits                 Use default GADGET units
+    --plot_T_map               Plots both surface density and average temperature maps
+    --plot_v_map               Overplots velocity map on plots
+    --plot_energy_map          Plots kinetic energy map
+    --energy_v_scale=<v0>      Scale in the weighting of kinetic energy (w=m*(1+(v/v0)^2)), [default: 1000.0]
+    --outputfolder=<name>      Specifies the folder to save the images and movies to
+    --name_addition=<name>     Extra string to be put after the name of the ouput files, defaults to empty string       
+    --no_pickle                Flag, if set no pickle file is created to make replots faster
+    --no_timestamp             Flag, if set no timestamp will be put on the images
+    --no_size_scale            Flag, if set no size scale will be put on the images
+    --draw_axes                Flag, if set the coordinate axes are added to the figure
+    --remake_only              Flag, if set SinkVis will only used already calculated pickle files, used to remake plots
+    --rescale_hsml=<f>         Factor by which the smoothing lengths of the particles are rescaled [default: 1]
+    --highlight_wind=<f>       Factor by which to increase wind particle masses if you want to highlight them [default: 1]
+    --smooth_center=<Ns>       If not 0 and SinkVis is supposed to center on a particle (e.g. with center_on_ID) then the center coordinates are smoothed across Ns snapshots, [default: 0]
 """
 
 #Example
@@ -52,6 +57,8 @@ Options:
 from Meshoid import GridSurfaceDensityMultigrid, GridAverage
 import Meshoid
 from scipy.spatial import cKDTree
+from scipy.interpolate import interp2d
+from scipy.ndimage import gaussian_filter
 import h5py
 import matplotlib
 matplotlib.use('Agg')
@@ -127,7 +134,7 @@ def find_sink_in_densest_gas(snapnum):
         return ids[-N_high:]
             
 def CoordTransform(x):
-    return x #np.roll(x, {'z': 0, 'y': 1, 'x': 2}[arguments["--dir"]], axis=1)
+    return np.roll(x, {'z': 0, 'y': 1, 'x': 2}[arguments["--dir"]], axis=1)
 
 def StarColor(mass_in_msun,cmap):
     if cmap=='afmhot':
@@ -137,10 +144,19 @@ def StarColor(mass_in_msun,cmap):
     colors = np.int_([np.interp(np.log10(mass_in_msun),[-1,0,1],star_colors[:,i]) for i in range(3)])
     return (colors[0],colors[1],colors[2])# if len(colors)==1 else colors)
 
+def Star_Edge_Color(cmap):
+    if cmap=='afmhot':
+        return 'black'
+    else:
+        return 'white'
+
+
 def MakeImage(i):
     global center_on_ID
     global limits
     global Tlimits
+    global energy_limits
+    global v_res
 #    print(i)
     snapnum1=file_numbers[i]
     snapnum2=(file_numbers[min(i+1,len(filenames)-1)] if n_interp>1 else snapnum1)
@@ -158,7 +174,7 @@ def MakeImage(i):
         #Check if all relevant pickle files exist
         all_pickle_exist = True
         for k in range(n_interp):
-            pickle_filename = "Sinkvis_snap%d_%d_%d_r%g_res%d_c%g_%g_%g_0_%d_%s"%(snapnum1,k,n_interp,r,res,center[0],center[1],center[2],sink_ID,arguments["--dir"])+rescale_text+slice_text+smooth_text+".pickle"
+            pickle_filename = "Sinkvis_snap%d_%d_%d_r%g_res%d_c%g_%g_%g_0_%d_%s"%(snapnum1,k,n_interp,r,res,center[0],center[1],center[2],sink_ID,arguments["--dir"])+rescale_text+slice_text+smooth_text+energy_v_scale_text+".pickle"
             if outputfolder:
                 pickle_filename=outputfolder+'/'+pickle_filename
             all_pickle_exist = all_pickle_exist & os.path.exists(pickle_filename)
@@ -296,7 +312,7 @@ def MakeImage(i):
                 k_in_filename = k
             else:
                 k_in_filename = 0
-            pickle_filename = "Sinkvis_snap%d_%d_%d_r%g_res%d_c%g_%g_%g_0_%d_%s"%(snapnum1,k_in_filename,n_interp,r,res,center[0],center[1],center[2],sink_ID,arguments["--dir"])+rescale_text+slice_text+smooth_text+".pickle"
+            pickle_filename = "Sinkvis_snap%d_%d_%d_r%g_res%d_c%g_%g_%g_0_%d_%s"%(snapnum1,k_in_filename,n_interp,r,res,center[0],center[1],center[2],sink_ID,arguments["--dir"])+rescale_text+slice_text+smooth_text+energy_v_scale_text+".pickle"
             if outputfolder:
                 pickle_filename=outputfolder+'/'+pickle_filename
             if not os.path.exists(pickle_filename):
@@ -363,23 +379,27 @@ def MakeImage(i):
                         Tmap_gas = np.zeros((res,res))
                         logTmap_gas = np.zeros((res,res))
                     
-                    v_field = np.zeros( (v_res,v_res,2) )
+                    v_field = np.zeros( (res,res,2) )
                     if plot_v_map:
-                        #Get average velocities in each pixel along line of sight
-                        #v_field[:,:,0] = GridAverage(v[:,0], x, h,star_center*0, L, res=res).T
-                        #v_field[:,:,1] = GridAverage(v[:,0], x, h,star_center*0, L, res=res).T
-                        weight_map = GridSurfaceDensityMultigrid(np.ones(len(v[:,0])), x, h,star_center*0, L, res=v_res) #sum of weights
-                        v_field[:,:,0] = (GridSurfaceDensityMultigrid(v[:,0], x, h,star_center*0, L, res=v_res)/weight_map).T
-                        v_field[:,:,1] = (GridSurfaceDensityMultigrid(v[:,1], x, h,star_center*0, L, res=v_res)/weight_map).T
+                        weight_map = GridSurfaceDensityMultigrid(np.ones(len(v[:,0])), x, h,star_center*0, L, res=res) #sum of weights
+                        v_field[:,:,0] = (GridSurfaceDensityMultigrid(v[:,0], x, h,star_center*0, L, res=res)/weight_map).T
+                        v_field[:,:,1] = (GridSurfaceDensityMultigrid(v[:,1], x, h,star_center*0, L, res=res)/weight_map).T
+                        
+                    if plot_energy_map:
+                        kin_energy_weighted = 0.5*m*(1.0+np.sum(v**2,axis=1)/(energy_v_scale**2))
+                        energy_map_gas = GridSurfaceDensityMultigrid(kin_energy_weighted, x, h, star_center*0, L, res=res).T
+                    else:
+                        energy_map_gas = np.zeros((res,res))
                 else:
                     sigma_gas = np.zeros((res,res))
                     Tmap_gas = np.zeros((res,res))
                     logTmap_gas = np.zeros((res,res))
+                    energy_map_gas = np.zeros((res,res))
                 #Save data
                 if not no_pickle:
                     print("Saving "+pickle_filename)
                     outfile = open(pickle_filename, 'wb') 
-                    pickle.dump([x_star,m_star,sigma_gas,Tmap_gas,logTmap_gas,time,numpart_total, star_center,v_field], outfile)
+                    pickle.dump([x_star,m_star,sigma_gas,Tmap_gas,logTmap_gas,time,numpart_total, star_center,v_field,energy_map_gas], outfile)
                     outfile.close()
             else:
                 #Load data from pickle file
@@ -392,7 +412,11 @@ def MakeImage(i):
                 if (len(temp)>=9):
                     v_field = temp[8]
                 else:
-                    v_field = np.zeros( (v_res,v_res,2) )
+                    v_field = np.zeros( (res,res,2) )
+                if (len(temp)>=10):
+                    energy_map_gas = temp[9]
+                else:
+                    energy_map_gas = np.zeros((res,res))
                 temp = 0; #unload
             #Adjust limits if not set
             if ((limits[0]==0) or (limits[1]==0)):
@@ -426,44 +450,51 @@ def MakeImage(i):
                 flogTgas = np.clip(flogTgas,0,1)
                 logTdata = flogTgas[:,:,np.newaxis]*plt.get_cmap(Tcmap)(flogTgas)[:,:,:3] 
                 logTdata = np.clip(logTdata,0,1)
+                
+                
+            if plot_energy_map:
+                #Adjust energy_limits if not set
+                if ((energy_limits[0]==0) or (energy_limits[1]==0)):
+                    energy_limits[1]=np.percentile(energy_map_gas,99)
+                    energy_limits[0]=np.min([energy_limits[1]*1e-2,np.max([energy_limits[1]*1e-4,np.percentile(energy_map_gas,5)])])
+                    print("Using energy limits of %g and %g"%(energy_limits[0],energy_limits[1]))
+                #Gas temperature map
+                fegas = (np.log10(energy_map_gas)-np.log10(energy_limits[0]))/np.log10(energy_limits[1]/energy_limits[0])
+                fegas = np.clip(fegas,0,1)
+                energy_data = fegas[:,:,np.newaxis]*plt.get_cmap(ecmap)(fegas)[:,:,:3] 
+                energy_data = np.clip(energy_data,0,1)
+                
+                
             local_name_addition = name_addition
             if sink_ID and (len(sink_IDs_to_center_on)>1):
                 local_name_addition = '_%d'%(sink_ID) + local_name_addition
             file_number = file_numbers[i]
             filename = "SurfaceDensity%s_%s.%s.png"%(local_name_addition,str(file_number).zfill(4),k)
             Tfilename = "Temperature%s_%s.%s.png"%(local_name_addition,str(file_number).zfill(4),k)
+            efilename = "KineticEnergy%s_%s.%s.png"%(local_name_addition,str(file_number).zfill(4),k)
             logTfilename = "LogTemperature%s_%s.%s.png"%(local_name_addition,str(file_number).zfill(4),k)
             if outputfolder:
                 filename=outputfolder+'/'+filename
                 Tfilename=outputfolder+'/'+Tfilename
+                efilename=outputfolder+'/'+efilename
                 logTfilename=outputfolder+'/'+logTfilename
             plt.imsave(filename, data) #f.split("snapshot_")[1].split(".hdf5")[0], map)
             print(filename)
+            flist = [filename]
             if plot_T_map:
                 plt.imsave(Tfilename, Tdata) #f.split("snapshot_")[1].split(".hdf5")[0], map)
                 print(Tfilename)
+                flist.append(Tfilename)
                 plt.imsave(logTfilename, logTdata) #f.split("snapshot_")[1].split(".hdf5")[0], map)
                 print(logTfilename)
-                flist = [filename, Tfilename,logTfilename]
-            else:
-                flist = [filename]
+                flist.append(ogTfilename)
+            if plot_energy_map:
+                plt.imsave(efilename, energy_data) #f.split("snapshot_")[1].split(".hdf5")[0], map)
+                print(efilename)
+                flist.append(efilename)
             for fname in flist:
                 gridres=res
-                #Add velocity field
-                #For some reason this messes up the timestamp and the scale
-                # if plot_v_map:
-                    # xlim = [boxsize/2.0+center[0]+star_center[0]-r,boxsize/2.0+center[0]+star_center[0]+r]
-                    # ylim = [boxsize/2.0+center[1]+star_center[1]-r,boxsize/2.0+center[1]+star_center[1]+r]
-                    # data = plt.imread(fname)
-                    # fig, ax = plt.subplots()
-                    # ax.imshow( data, extent=(xlim[0],xlim[1],ylim[0],ylim[1]) )
-                    # quiver_scale=2000
-                    # x = np.linspace(xlim[0],xlim[1],num=v_res)
-                    # y = np.linspace(ylim[0],ylim[1],num=v_res)
-                    # ax.quiver(x,y,v_field[:,:,0],v_field[:,:,1],color='k',scale=quiver_scale,scale_units='inches',units='xy',angles='xy')
-                    # ax.axis('off')
-                    # fig.set_size_inches(8, 8)
-                    # fig.savefig(fname,dpi=int(gridres/2))
+                #Adding velocity field  here for some reason messes up the timestamp and the scale
                 #Add labels and scale
                 F = Image.open(fname)
                 gridres = F.size[0]
@@ -494,11 +525,11 @@ def MakeImage(i):
                     draw.text((gridres/16, gridres/24), time_text, font=font)
                 if numpart_total[sink_type]:
                     d = aggdraw.Draw(F)
-                    pen = aggdraw.Pen("white",gridres/800)
+                    pen = aggdraw.Pen(Star_Edge_Color(cmap),1) #gridres/800
                     for j in np.arange(len(x_star))[m_star>0]:
                         X = x_star[j] - star_center
                         ms = m_star[j]
-                        star_size = gridres/400 * (np.log10(ms/sink_scale) + 1)
+                        star_size = gridres*sink_relscale * (np.log10(ms/sink_scale) + 1)
                         star_size = max(1,star_size)
                         p = aggdraw.Brush(StarColor(ms,cmap))
                         X -= boxsize/2 + center
@@ -512,16 +543,37 @@ def MakeImage(i):
                 F.close()
                 #Add velocity field
                 if plot_v_map:
+                    if v_res>res:
+                        print("v_res too high, resetting to %d"%(res))
+                        v_res=res
                     xlim = [boxsize/2.0+center[0]+star_center[0]-r,boxsize/2.0+center[0]+star_center[0]+r]
                     ylim = [boxsize/2.0+center[1]+star_center[1]-r,boxsize/2.0+center[1]+star_center[1]+r]
                     data = plt.imread(fname)
                     fig, ax = plt.subplots()
                     ax.imshow( data, extent=(xlim[0],xlim[1],ylim[0],ylim[1]) )
-                    #quiver_scale=v_res/4*np.mean(np.linalg.norm(v_field,axis=2))
-                    quiver_scale=v_res/4*velocity_scale
-                    x = np.linspace(xlim[0],xlim[1],num=v_res)
-                    y = np.linspace(ylim[0],ylim[1],num=v_res)
-                    ax.quiver(x,y,v_field[:,:,0],v_field[:,:,1],color=arrow_color,scale=quiver_scale,scale_units='inches',units='xy',angles='xy')
+                    if not ('vx_field' in locals()):
+                        #quiver_scale=v_res/4*np.mean(np.linalg.norm(v_field,axis=2))
+                        quiver_scale=v_res/4*velocity_scale
+                        x = np.linspace(xlim[0],xlim[1],num=v_res)
+                        y = np.linspace(ylim[0],ylim[1],num=v_res)
+                        #Reduce v_field resolution
+                        vx_smoothed = gaussian_filter(v_field[:,:,0], sigma=res/v_res)
+                        vy_smoothed = gaussian_filter(v_field[:,:,1], sigma=res/v_res)
+                        #Interolate v_field
+                        vx_interpolfunc = interp2d(np.arange(res)/(res-1), np.arange(res)/(res-1), vx_smoothed )
+                        vy_interpolfunc = interp2d(np.arange(res)/(res-1), np.arange(res)/(res-1), vy_smoothed )
+                        vx_field = vx_interpolfunc( np.arange(v_res)/(v_res-1), np.arange(v_res)/(v_res-1) )
+                        vy_field = vy_interpolfunc( np.arange(v_res)/(v_res-1), np.arange(v_res)/(v_res-1) )
+                        #Rescale v_field
+                        v_min_scale = 0.3 * (8/v_res) #prefactor times the space between velocity grid points
+                        vx_field = vx_field/quiver_scale; vy_field = vy_field/quiver_scale
+                        #Correct for too small arrows
+                        vlength = np.sqrt(vx_field**2 + vy_field**2); 
+                        vlength_corrections = np.clip(v_min_scale/vlength,1.0,None)
+                        vx_field = vx_field*vlength_corrections; vy_field = vy_field*vlength_corrections
+                        #Correction to align the arrows and the background
+                        vx_field = np.fliplr(-vx_field); vy_field = np.fliplr(vy_field)
+                    ax.quiver(x,y,vx_field,vy_field,color=arrow_color,scale=1.0,scale_units='inches',units='xy',angles='xy')
                     ax.axis('off')
                     fig.set_size_inches(8, 8)
                     fig.savefig(fname,dpi=int(gridres/8))
@@ -578,10 +630,10 @@ def MakeMovie():
         os.remove(framefile)
             
 
-def make_input(files=["snapshot_000.hdf5"], rmax=False, full_box=False, center=[0,0,0],limits=[0,0],Tlimits=[0,0],\
+def make_input(files=["snapshot_000.hdf5"], rmax=False, full_box=False, center=[0,0,0],limits=[0,0],Tlimits=[0,0],energy_limits=[0,0],\
                 interp_fac=1, np=1,res=512,v_res=32, only_movie=False, fps=20, movie_name="sink_movie",dir='z',\
-                center_on_star=0, N_high=1, Tcmap="inferno", cmap="viridis", no_movie=True,make_movie=False, outputfolder="output",\
-                plot_T_map=True,plot_v_map=False, sink_scale=0.1, sink_type=5, galunits=False,name_addition="",center_on_ID=0,no_pickle=False, no_timestamp=False,slice_height=0,velocity_scale=1000,arrow_color='white',\
+                center_on_star=0, N_high=1, Tcmap="inferno", cmap="viridis",ecmap="viridis", no_movie=True,make_movie=False, outputfolder="output",\
+                plot_T_map=True,plot_v_map=False,plot_energy_map=False, sink_scale=0.1, sink_relscale=0.0025, sink_type=5, galunits=False,name_addition="",center_on_ID=0,no_pickle=False, no_timestamp=False,slice_height=0,velocity_scale=1000,arrow_color='white',energy_v_scale=1000,\
                 no_size_scale=False, center_on_densest=False, draw_axes=False, remake_only=False, rescale_hsml=1.0, smooth_center=False, highlight_wind=1.0):
     if (not isinstance(files, list)):
         files=[files]
@@ -593,11 +645,13 @@ def make_input(files=["snapshot_000.hdf5"], rmax=False, full_box=False, center=[
         "--dir": dir,
         "--limits": str(limits[0])+","+str(limits[1]),
         "--Tlimits": str(Tlimits[0])+","+str(Tlimits[1]),
+        "--energy_limits": str(energy_limits[0])+","+str(energy_limits[1]),
         "--interp_fac": interp_fac,
         "--np": np,
         "--res": res,
         "--v_res": res,
         "--velocity_scale": velocity_scale,
+        "--energy_v_scale": energy_v_scale,
         "--arrow_color": arrow_color,
         "--only_movie": only_movie,
         "--slice_height": slice_height,
@@ -606,6 +660,7 @@ def make_input(files=["snapshot_000.hdf5"], rmax=False, full_box=False, center=[
         "--movie_name": movie_name,
         "--sink_type": str(sink_type),
         "--sink_scale": sink_scale,
+        "--sink_relscale": sink_relscale,
         "--galunits": galunits,
         "--center_on_star": center_on_star,
         "--center_on_ID": center_on_ID,
@@ -613,10 +668,12 @@ def make_input(files=["snapshot_000.hdf5"], rmax=False, full_box=False, center=[
         "--N_high": N_high,
         "--Tcmap": Tcmap,
         "--cmap": cmap,
+        "--ecmap": ecmap,
         "--no_movie": no_movie,
         "--make_movie": make_movie,
         "--outputfolder": outputfolder,
         "--plot_T_map": plot_T_map,
+        "--plot_energy_map": plot_energy_map,
         "--plot_v_map": plot_v_map,
         "--name_addition": name_addition,
         "--no_timestamp": no_timestamp,
@@ -655,6 +712,7 @@ def main(input):
     center = np.roll(center, {'z': 0, 'y': 1, 'x': 2}[arguments["--dir"]], axis=0)
     global limits; limits = np.array([float(c) for c in arguments["--limits"].split(',')])
     global Tlimits; Tlimits = np.array([float(c) for c in arguments["--Tlimits"].split(',')])
+    global energy_limits; energy_limits = np.array([float(c) for c in arguments["--energy_limits"].split(',')])
     global logTlimits; logTlimits = np.zeros(2)
     if Tlimits[0]:
         #used for log T plot
@@ -664,6 +722,7 @@ def main(input):
     nproc = int(arguments["--np"])
     global n_interp; n_interp = int(arguments["--interp_fac"])
     global cmap; cmap = arguments["--cmap"]
+    global ecmap; ecmap = arguments["--ecmap"]
     global Tcmap; Tcmap = arguments["--Tcmap"]
     global only_movie; only_movie = arguments["--only_movie"]
     global galunits; galunits = arguments["--galunits"]
@@ -676,6 +735,7 @@ def main(input):
     else:
         no_movie = True
     global plot_T_map; plot_T_map = arguments["--plot_T_map"]
+    global plot_energy_map; plot_energy_map = arguments["--plot_energy_map"]
     global plot_v_map; plot_v_map = arguments["--plot_v_map"]
     global no_pickle; no_pickle = arguments["--no_pickle"]
     global remake_only; remake_only = arguments["--remake_only"]
@@ -684,6 +744,10 @@ def main(input):
     global no_size_scale; no_size_scale = arguments["--no_size_scale"]
     global fps; fps = float(arguments["--fps"])
     global velocity_scale; velocity_scale = float(arguments["--velocity_scale"]) 
+    global energy_v_scale; energy_v_scale = float(arguments["--energy_v_scale"])
+    global energy_v_scale_text; energy_v_scale_text=''
+    if plot_energy_map:
+        energy_v_scale_text = '_v0%g'%(energy_v_scale)
     global rescale_hsml; rescale_hsml = float(arguments["--rescale_hsml"])
     global highlight_wind; highlight_wind = float(arguments["--highlight_wind"])
     global movie_name; movie_name = arguments["--movie_name"]
@@ -691,6 +755,7 @@ def main(input):
     global sink_type; sink_type = int(arguments["--sink_type"])
     global sink_type_text; sink_type_text="PartType" + str(sink_type)
     global sink_scale; sink_scale = float(arguments["--sink_scale"])
+    global sink_relscale; sink_relscale = float(arguments["--sink_relscale"])
     global center_on_star; center_on_star = 1 if arguments["--center_on_star"] else 0
     global center_on_ID; center_on_ID = int(arguments["--center_on_ID"]) if arguments["--center_on_ID"] else 0
     global smooth_center; smooth_center = int(arguments["--smooth_center"])
