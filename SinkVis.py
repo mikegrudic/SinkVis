@@ -487,7 +487,7 @@ def MakeImage(i):
                 flist.append(Tfilename)
                 plt.imsave(logTfilename, logTdata) #f.split("snapshot_")[1].split(".hdf5")[0], map)
                 print(logTfilename)
-                flist.append(ogTfilename)
+                flist.append(logTfilename)
             if plot_energy_map:
                 plt.imsave(efilename, energy_data) #f.split("snapshot_")[1].split(".hdf5")[0], map)
                 print(efilename)
