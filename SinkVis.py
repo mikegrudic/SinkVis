@@ -38,6 +38,7 @@ Options:
     --plot_T_map               Plots both surface density and average temperature maps
     --plot_v_map               Overplots velocity map on plots
     --plot_energy_map          Plots kinetic energy map
+    --plot_cool_map            Plots cool map that looks cool
     --energy_v_scale=<v0>      Scale in the weighting of kinetic energy (w=m*(1+(v/v0)^2)), [default: 1000.0]
     --outputfolder=<name>      Specifies the folder to save the images and movies to
     --name_addition=<name>     Extra string to be put after the name of the ouput files, defaults to empty string       
@@ -64,6 +65,7 @@ import matplotlib
 matplotlib.use('Agg')
 from matplotlib import pyplot as plt
 from PIL import Image, ImageDraw, ImageFont
+from matplotlib.colors import LightSource
 import numpy as np
 from multiprocessing import Pool
 import aggdraw
@@ -384,9 +386,15 @@ def MakeImage(i):
                         weight_map = GridSurfaceDensityMultigrid(np.ones(len(v[:,0])), x, h,star_center*0, L, res=res) #sum of weights
                         v_field[:,:,0] = (GridSurfaceDensityMultigrid(v[:,0], x, h,star_center*0, L, res=res)/weight_map).T
                         v_field[:,:,1] = (GridSurfaceDensityMultigrid(v[:,1], x, h,star_center*0, L, res=res)/weight_map).T
+                    if plot_cool_map:
+                        sigma_1D = GridSurfaceDensityMultigrid(m * v[:,2]**2, x, h,star_center*0, L, res=res).T/sigma_gas
+                        v_avg = GridSurfaceDensityMultigrid(m * v[:,2], x, h,star_center*0, L, res=res).T/sigma_gas
+                        sigma_1D = np.sqrt(sigma_1D - v_avg**2) / 1e3
+                    else:
+                        sigma_1D = np.zeros((res,res))
                         
                     if plot_energy_map:
-                        kin_energy_weighted = 0.5*m*(1.0+np.sum(v**2,axis=1)/(energy_v_scale**2))
+                        kin_energy_weighted = m*(1.0+np.sum(v**2,axis=1)/(energy_v_scale**2))
                         energy_map_gas = GridSurfaceDensityMultigrid(kin_energy_weighted, x, h, star_center*0, L, res=res).T
                     else:
                         energy_map_gas = np.zeros((res,res))
@@ -399,7 +407,7 @@ def MakeImage(i):
                 if not no_pickle:
                     print("Saving "+pickle_filename)
                     outfile = open(pickle_filename, 'wb') 
-                    pickle.dump([x_star,m_star,sigma_gas,Tmap_gas,logTmap_gas,time,numpart_total, star_center,v_field,energy_map_gas], outfile)
+                    pickle.dump([x_star,m_star,sigma_gas,Tmap_gas,logTmap_gas,time,numpart_total, star_center,v_field,energy_map_gas, sigma_1D], outfile)
                     outfile.close()
             else:
                 #Load data from pickle file
@@ -417,6 +425,10 @@ def MakeImage(i):
                     energy_map_gas = temp[9]
                 else:
                     energy_map_gas = np.zeros((res,res))
+                if len(temp)>= 11:
+                    sigma_1D = temp[10]
+                else:
+                    sigma_1D = np.zeros((res,res))
                 temp = 0; #unload
             #Adjust limits if not set
             if ((limits[0]==0) or (limits[1]==0)):
@@ -455,29 +467,42 @@ def MakeImage(i):
             if plot_energy_map:
                 #Adjust energy_limits if not set
                 if ((energy_limits[0]==0) or (energy_limits[1]==0)):
-                    energy_limits[1]=np.percentile(energy_map_gas,99)
-                    energy_limits[0]=np.min([energy_limits[1]*1e-2,np.max([energy_limits[1]*1e-4,np.percentile(energy_map_gas,5)])])
+                    energy_limits = limits
+#                    energy_limits[1]=np.percentile(energy_map_gas,99)
+#                    energy_limits[0]=np.min([energy_limits[1]*1e-2,np.max([energy_limits[1]*1e-4,np.percentile(energy_map_gas,5)])])
                     print("Using energy limits of %g and %g"%(energy_limits[0],energy_limits[1]))
                 #Gas temperature map
                 fegas = (np.log10(energy_map_gas)-np.log10(energy_limits[0]))/np.log10(energy_limits[1]/energy_limits[0])
                 fegas = np.clip(fegas,0,1)
                 energy_data = fegas[:,:,np.newaxis]*plt.get_cmap(ecmap)(fegas)[:,:,:3] 
                 energy_data = np.clip(energy_data,0,1)
+
+            if plot_cool_map:
+                fgas = (np.log10(sigma_gas)-np.log10(limits[0]))/np.log10(limits[1]/limits[0])
+#                fgas = np.clip(fgas,0,1)
+
+                ls = LightSource(azdeg=315, altdeg=45)
+                #lightness = ls.hillshade(z, vert_exag=4)
+                mapcolor = plt.get_cmap(cmap)(np.log10(sigma_1D/0.1)/2)
+                cool_data = ls.blend_hsv(mapcolor[:,:,:3], fgas[:,:,None])
+                cool_data = np.flipud(cool_data)
                 
                 
             local_name_addition = name_addition
             if sink_ID and (len(sink_IDs_to_center_on)>1):
                 local_name_addition = '_%d'%(sink_ID) + local_name_addition
-            file_number = file_numbers[i]
+            file_number = file_numbers[i]            
             filename = "SurfaceDensity%s_%s.%s.png"%(local_name_addition,str(file_number).zfill(4),k)
             Tfilename = "Temperature%s_%s.%s.png"%(local_name_addition,str(file_number).zfill(4),k)
             efilename = "KineticEnergy%s_%s.%s.png"%(local_name_addition,str(file_number).zfill(4),k)
             logTfilename = "LogTemperature%s_%s.%s.png"%(local_name_addition,str(file_number).zfill(4),k)
+            coolfilename = "cool_%s_%s.%s.png"%(local_name_addition,str(file_number).zfill(4),k)
             if outputfolder:
                 filename=outputfolder+'/'+filename
                 Tfilename=outputfolder+'/'+Tfilename
                 efilename=outputfolder+'/'+efilename
                 logTfilename=outputfolder+'/'+logTfilename
+                coolfilename=outputfolder+'/'+coolfilename
             plt.imsave(filename, data) #f.split("snapshot_")[1].split(".hdf5")[0], map)
             print(filename)
             flist = [filename]
@@ -492,6 +517,10 @@ def MakeImage(i):
                 plt.imsave(efilename, energy_data) #f.split("snapshot_")[1].split(".hdf5")[0], map)
                 print(efilename)
                 flist.append(efilename)
+            if plot_cool_map:
+                plt.imsave(coolfilename, cool_data)
+                print(coolfilename)
+                flist.append(coolfilename)
             for fname in flist:
                 gridres=res
                 #Adding velocity field  here for some reason messes up the timestamp and the scale
@@ -673,6 +702,7 @@ def make_input(files=["snapshot_000.hdf5"], rmax=False, full_box=False, center=[
         "--make_movie": make_movie,
         "--outputfolder": outputfolder,
         "--plot_T_map": plot_T_map,
+        "--plot_cool_map": plot_cool_map,
         "--plot_energy_map": plot_energy_map,
         "--plot_v_map": plot_v_map,
         "--name_addition": name_addition,
@@ -737,6 +767,7 @@ def main(input):
     global plot_T_map; plot_T_map = arguments["--plot_T_map"]
     global plot_energy_map; plot_energy_map = arguments["--plot_energy_map"]
     global plot_v_map; plot_v_map = arguments["--plot_v_map"]
+    global plot_cool_map; plot_cool_map = arguments["--plot_cool_map"]
     global no_pickle; no_pickle = arguments["--no_pickle"]
     global remake_only; remake_only = arguments["--remake_only"]
     global no_timestamp; no_timestamp = arguments["--no_timestamp"]
