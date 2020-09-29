@@ -50,12 +50,13 @@ Options:
     --rescale_hsml=<f>         Factor by which the smoothing lengths of the particles are rescaled [default: 1]
     --highlight_wind=<f>       Factor by which to increase wind particle masses if you want to highlight them [default: 1]
     --smooth_center=<Ns>       If not 0 and SinkVis is supposed to center on a particle (e.g. with center_on_ID) then the center coordinates are smoothed across Ns snapshots, [default: 0]
+    --disable_multigrid        Disables GridSurfaceDensityMultigrid froms meshoid, uses slower GridSurfaceDensity instead
 """
 
 #Example
 # python SinkVis.py /panfs/ds08/hopkins/guszejnov/GMC_sim/Tests/200msun/MHD_isoT_2e6/output/snapshot*.hdf5 --np=24 --only_movie --movie_name=200msun_MHD_isoT_2e6
 
-from Meshoid import GridSurfaceDensityMultigrid, GridAverage
+from Meshoid import GridSurfaceDensityMultigrid,GridSurfaceDensity, GridAverage
 import Meshoid
 from scipy.spatial import cKDTree
 from scipy.interpolate import interp2d
@@ -139,7 +140,7 @@ def CoordTransform(x):
     return np.roll(x, {'z': 0, 'y': 1, 'x': 2}[arguments["--dir"]], axis=1)
 
 def StarColor(mass_in_msun,cmap):
-    if cmap=='afmhot':
+    if cmap=='afmhot' or cmap=='inferno':
         star_colors = np.array([[255, 100, 60],[120, 200, 150],[75, 80, 255]]) #alternate colors, red-green-blue, easier to see on a bright color map
     else:
         star_colors = np.array([[255, 203, 132],[255, 243, 233],[155, 176, 255]]) #default colors, reddish for small ones, yellow-white for mid sized and blue for large
@@ -147,7 +148,7 @@ def StarColor(mass_in_msun,cmap):
     return (colors[0],colors[1],colors[2])# if len(colors)==1 else colors)
 
 def Star_Edge_Color(cmap):
-    if cmap=='afmhot':
+    if cmap=='afmhot' or cmap=='inferno':
         return 'black'
     else:
         return 'white'
@@ -159,6 +160,12 @@ def MakeImage(i):
     global Tlimits
     global energy_limits
     global v_res
+    
+    if disable_multigrid:
+        GridSurfaceDensity_func = GridSurfaceDensity
+    else:
+        GridSurfaceDensity_func = GridSurfaceDensityMultigrid
+    
 #    print(i)
     snapnum1=file_numbers[i]
     snapnum2=(file_numbers[min(i+1,len(filenames)-1)] if n_interp>1 else snapnum1)
@@ -370,32 +377,32 @@ def MakeImage(i):
 
                     h = float(k)/n_interp * h2 + (n_interp-float(k))/n_interp * h1
                     h = np.clip(h,L/res, 1e100)
-                    sigma_gas = GridSurfaceDensityMultigrid(m, x, h, star_center*0, L, res=res).T
+                    sigma_gas = GridSurfaceDensity_func(m, x, h, star_center*0, L, res=res).T
                     if plot_T_map:
                         #Tmap_gas = GridAverage(u, x, h,star_center*0, L, res=res).T #should be similar to mass weighted average if particle masses roughly constant, also converting to K
                         #logTmap_gas = GridAverage(np.log10(u), x, h,star_center*0, L, res=res).T #average of log T so that it is not completely dominated by the warm ISM
-                        weight_map = GridSurfaceDensityMultigrid(np.ones(len(u)), x, h,star_center*0, L, res=res) #sum of weights
-                        Tmap_gas = (GridSurfaceDensityMultigrid(u, x, h,star_center*0, L, res=res)/weight_map).T #should be similar to mass weighted average if particle masses roughly constant, also converting to K
-                        logTmap_gas = (GridSurfaceDensityMultigrid(np.log10(u), x, h,star_center*0, L, res=res)/weight_map).T #average of log T so that it is not completely dominated by the warm ISM
+                        weight_map = GridSurfaceDensity_func(np.ones(len(u)), x, h,star_center*0, L, res=res) #sum of weights
+                        Tmap_gas = (GridSurfaceDensity_func(u, x, h,star_center*0, L, res=res)/weight_map).T #should be similar to mass weighted average if particle masses roughly constant, also converting to K
+                        logTmap_gas = (GridSurfaceDensity_func(np.log10(u), x, h,star_center*0, L, res=res)/weight_map).T #average of log T so that it is not completely dominated by the warm ISM
                     else:
                         Tmap_gas = np.zeros((res,res))
                         logTmap_gas = np.zeros((res,res))
                     
                     v_field = np.zeros( (res,res,2) )
                     if plot_v_map:
-                        weight_map = GridSurfaceDensityMultigrid(np.ones(len(v[:,0])), x, h,star_center*0, L, res=res) #sum of weights
-                        v_field[:,:,0] = (GridSurfaceDensityMultigrid(v[:,0], x, h,star_center*0, L, res=res)/weight_map).T
-                        v_field[:,:,1] = (GridSurfaceDensityMultigrid(v[:,1], x, h,star_center*0, L, res=res)/weight_map).T
+                        weight_map = GridSurfaceDensity_func(np.ones(len(v[:,0])), x, h,star_center*0, L, res=res) #sum of weights
+                        v_field[:,:,0] = (GridSurfaceDensity_func(v[:,0], x, h,star_center*0, L, res=res)/weight_map).T
+                        v_field[:,:,1] = (GridSurfaceDensity_func(v[:,1], x, h,star_center*0, L, res=res)/weight_map).T
                     if plot_cool_map:
-                        sigma_1D = GridSurfaceDensityMultigrid(m * v[:,2]**2, x, h,star_center*0, L, res=res).T/sigma_gas
-                        v_avg = GridSurfaceDensityMultigrid(m * v[:,2], x, h,star_center*0, L, res=res).T/sigma_gas
+                        sigma_1D = GridSurfaceDensity_func(m * v[:,2]**2, x, h,star_center*0, L, res=res).T/sigma_gas
+                        v_avg = GridSurfaceDensity_func(m * v[:,2], x, h,star_center*0, L, res=res).T/sigma_gas
                         sigma_1D = np.sqrt(sigma_1D - v_avg**2) / 1e3
                     else:
                         sigma_1D = np.zeros((res,res))
                         
                     if plot_energy_map:
                         kin_energy_weighted = m*(1.0+np.sum(v**2,axis=1)/(energy_v_scale**2))
-                        energy_map_gas = GridSurfaceDensityMultigrid(kin_energy_weighted, x, h, star_center*0, L, res=res).T
+                        energy_map_gas = GridSurfaceDensity_func(kin_energy_weighted, x, h, star_center*0, L, res=res).T
                     else:
                         energy_map_gas = np.zeros((res,res))
                 else:
@@ -663,7 +670,8 @@ def make_input(files=["snapshot_000.hdf5"], rmax=False, full_box=False, center=[
                 interp_fac=1, np=1,res=512,v_res=32, only_movie=False, fps=20, movie_name="sink_movie",dir='z',\
                 center_on_star=0, N_high=1, Tcmap="inferno", cmap="viridis",ecmap="viridis", no_movie=True,make_movie=False, outputfolder="output",\
                 plot_T_map=True,plot_v_map=False,plot_energy_map=False, sink_scale=0.1, sink_relscale=0.0025, sink_type=5, galunits=False,name_addition="",center_on_ID=0,no_pickle=False, no_timestamp=False,slice_height=0,velocity_scale=1000,arrow_color='white',energy_v_scale=1000,\
-                no_size_scale=False, center_on_densest=False, draw_axes=False, remake_only=False, rescale_hsml=1.0, smooth_center=False, highlight_wind=1.0):
+                no_size_scale=False, center_on_densest=False, draw_axes=False, remake_only=False, rescale_hsml=1.0, smooth_center=False, highlight_wind=1.0,\
+                disable_multigrid=False):
     if (not isinstance(files, list)):
         files=[files]
     arguments={
@@ -712,6 +720,7 @@ def make_input(files=["snapshot_000.hdf5"], rmax=False, full_box=False, center=[
         "--remake_only": remake_only,
         "--rescale_hsml": rescale_hsml,
         "--smooth_center": smooth_center,
+        "--disable_multigrid": disable_multigrid,
         "--highlight_wind": highlight_wind
         }
     return arguments
@@ -764,6 +773,7 @@ def main(input):
         no_movie = False
     else:
         no_movie = True
+    global disable_multigrid; disable_multigrid = arguments["--disable_multigrid"]
     global plot_T_map; plot_T_map = arguments["--plot_T_map"]
     global plot_energy_map; plot_energy_map = arguments["--plot_energy_map"]
     global plot_v_map; plot_v_map = arguments["--plot_v_map"]
