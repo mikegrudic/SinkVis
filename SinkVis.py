@@ -664,6 +664,21 @@ def MakeMovie():
             for i in filenames:
                 os.remove(i)
         os.remove(framefile)
+    #Plotting coolness
+    if plot_cool_map:
+        #Find files
+        if outputfolder:
+            filenames=natsorted(glob(outputfolder+'/'+'cool'+name_addition+'_????.?.png'))
+        else:
+            filenames=natsorted(glob('cool'+name_addition+'_????.?.png'))
+        #Use ffmpeg to create movie
+        open(framefile,'w').write('\n'.join(["file '%s'"%f for f in filenames]))
+        os.system("ffmpeg -y -r " + str(fps) + " -f concat -i frames.txt -vb 20M -pix_fmt yuv420p -q:v 0 -vcodec h264 -acodec aac -strict -2 -preset slow " + moviefilename + "_cool.mp4")
+        #Erase files, leave movie only
+        if only_movie:
+            for i in filenames:
+                os.remove(i)
+        os.remove(framefile)
             
 
 def make_input(files=["snapshot_000.hdf5"], rmax=False, full_box=False, center=[0,0,0],limits=[0,0],Tlimits=[0,0],energy_limits=[0,0],\
