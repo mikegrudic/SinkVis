@@ -670,7 +670,7 @@ def MakeMovie():
     if plot_cool_map:
         #Find files
         if outputfolder:
-            filenames=natsorted(glob(outputfolder+'/'+'cool'+name_addition+'_????.?.png'))
+            filenames=natsorted(glob(outputfolder+'/'+'cool_'+name_addition+'_????.?.png'))
         else:
             filenames=natsorted(glob('cool'+name_addition+'_????.?.png'))
         #Use ffmpeg to create movie
