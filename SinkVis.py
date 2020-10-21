@@ -23,9 +23,10 @@ Options:
     --velocity_scale=<f>       Scale for the quivers when using plot_v_map, in m/s [default: 1000]
     --arrow_color=<name>       Color of the velocity arrows if plot_v_map is enabled, [default: white]
     --slice_height=<pc>        Calculation is only done on particles within a box of 2*slice_height size around the center (mostly for zoom-ins), no slicing if set to zero [default: 0]
-    --only_movie               Only the movie is saved, the images are removed at the end
+    --keep_only_movie          Only the movie is saved, the images are removed at the end
     --no_movie                 Does not create a movie, only makes images (legacy, default behavior now is not to make a movie)
     --make_movie               Also makes movie
+    --make_movie_only          Flag, if set only the movie is made from premade images
     --fps=<fps>                Frame per second for movie [default: 24]
     --movie_name=<name>        Filename of the output movie file without format [default: sink_movie]
     --sink_type=<N>            Particle type of sinks [default: 5]
@@ -55,7 +56,7 @@ Options:
 """
 
 #Example
-# python SinkVis.py /panfs/ds08/hopkins/guszejnov/GMC_sim/Tests/200msun/MHD_isoT_2e6/output/snapshot*.hdf5 --np=24 --only_movie --movie_name=200msun_MHD_isoT_2e6
+# python SinkVis.py /panfs/ds08/hopkins/guszejnov/GMC_sim/Tests/200msun/MHD_isoT_2e6/output/snapshot*.hdf5 --np=24 --keep_only_movie --movie_name=200msun_MHD_isoT_2e6
 
 from Meshoid import GridSurfaceDensityMultigrid,GridSurfaceDensity, GridAverage
 import Meshoid
@@ -646,7 +647,7 @@ def MakeMovie():
     open(framefile,'w').write('\n'.join(["file '%s'"%os.path.basename(f) for f in filenames]))
     os.system("ffmpeg -y -r " + str(fps) + " -f concat -i "+framefile+" -vb 20M -pix_fmt yuv420p  -q:v 0 -vcodec h264 -acodec aac -strict -2 -preset slow " + moviefilename + ".mp4")
     #Erase files, leave movie only
-    if only_movie:
+    if keep_only_movie:
         for i in filenames:
             os.remove(i)
     os.remove(framefile)
@@ -661,7 +662,7 @@ def MakeMovie():
         open(framefile,'w').write('\n'.join(["file '%s'"%f for f in filenames]))
         os.system("ffmpeg -y -r " + str(fps) + " -f concat -i frames.txt -vb 20M -pix_fmt yuv420p -q:v 0 -vcodec h264 -acodec aac -strict -2 -preset slow " + moviefilename + "_temp.mp4")
         #Erase files, leave movie only
-        if only_movie:
+        if keep_only_movie:
             for i in filenames:
                 os.remove(i)
         os.remove(framefile)
@@ -676,15 +677,15 @@ def MakeMovie():
         open(framefile,'w').write('\n'.join(["file '%s'"%f for f in filenames]))
         os.system("ffmpeg -y -r " + str(fps) + " -f concat -i frames.txt -vb 20M -pix_fmt yuv420p -q:v 0 -vcodec h264 -acodec aac -strict -2 -preset slow " + moviefilename + "_cool.mp4")
         #Erase files, leave movie only
-        if only_movie:
+        if keep_only_movie:
             for i in filenames:
                 os.remove(i)
         os.remove(framefile)
             
 
 def make_input(files=["snapshot_000.hdf5"], rmax=False, full_box=False, center=[0,0,0],limits=[0,0],Tlimits=[0,0],energy_limits=[0,0],\
-                interp_fac=1, np=1,res=512,v_res=32, only_movie=False, fps=20, movie_name="sink_movie",dir='z',\
-                center_on_star=0, N_high=1, Tcmap="inferno", cmap="viridis",ecmap="viridis", no_movie=True,make_movie=False, outputfolder="output",cool_cmap='same',\
+                interp_fac=1, np=1,res=512,v_res=32, keep_only_movie=False, fps=20, movie_name="sink_movie",dir='z',\
+                center_on_star=0, N_high=1, Tcmap="inferno", cmap="viridis",ecmap="viridis", no_movie=True,make_movie=False, make_movie_only=False,outputfolder="output",cool_cmap='same',\
                 plot_T_map=True,plot_v_map=False,plot_energy_map=False, sink_scale=0.1, sink_relscale=0.0025, sink_type=5, galunits=False,name_addition="",center_on_ID=0,no_pickle=False, no_timestamp=False,slice_height=0,velocity_scale=1000,arrow_color='white',energy_v_scale=1000,\
                 no_size_scale=False, center_on_densest=False, draw_axes=False, remake_only=False, rescale_hsml=1.0, smooth_center=False, highlight_wind=1.0,\
                 disable_multigrid=False):
@@ -706,7 +707,7 @@ def make_input(files=["snapshot_000.hdf5"], rmax=False, full_box=False, center=[
         "--velocity_scale": velocity_scale,
         "--energy_v_scale": energy_v_scale,
         "--arrow_color": arrow_color,
-        "--only_movie": only_movie,
+        "--keep_only_movie": keep_only_movie,
         "--slice_height": slice_height,
         "--no_pickle": no_pickle,
         "--fps": fps,
@@ -725,6 +726,7 @@ def make_input(files=["snapshot_000.hdf5"], rmax=False, full_box=False, center=[
         "--ecmap": ecmap,
         "--no_movie": no_movie,
         "--make_movie": make_movie,
+        "--make_movie_only":make_movie_only,
         "--outputfolder": outputfolder,
         "--plot_T_map": plot_T_map,
         "--plot_cool_map": plot_cool_map,
@@ -783,13 +785,14 @@ def main(input):
         cool_cmap = cmap
     global ecmap; ecmap = arguments["--ecmap"]
     global Tcmap; Tcmap = arguments["--Tcmap"]
-    global only_movie; only_movie = arguments["--only_movie"]
+    global keep_only_movie; keep_only_movie = arguments["--keep_only_movie"]
     global galunits; galunits = arguments["--galunits"]
     global no_movie
     #no_movie = arguments["--no_movie"]
     make_movie = arguments["--make_movie"]
+    make_movie_only = arguments["--make_movie_only"]
     global slice_height; slice_height = float(arguments["--slice_height"])
-    if make_movie:
+    if make_movie or make_movie_only:
         no_movie = False
     else:
         no_movie = True
@@ -857,10 +860,11 @@ def main(input):
         print("Surface density or temperature limits not set, running final snapshot first to guess the appropriate values.")
         MakeImage(len(filenames)-1)
         
-    if nproc>1:
-        Pool(nproc).map(MakeImage, (f for f in range(len(filenames))), chunksize=1)
-    else:
-        [MakeImage(i) for i in range(len(filenames))]
+    if not make_movie_only:
+        if nproc>1:
+            Pool(nproc).map(MakeImage, (f for f in range(len(filenames))), chunksize=1)
+        else:
+            [MakeImage(i) for i in range(len(filenames))]
     if (len(filenames) > 1 and (not no_movie) ): 
         MakeMovie() # only make movie if plotting multiple files
         
