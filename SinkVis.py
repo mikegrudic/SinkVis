@@ -15,6 +15,7 @@ Options:
     --ecmap=<name>             Name of colormap to use for kinetic energy [default: viridis]
     --Tcmap=<name>             Name of colormap to use for temperature [default: inferno]
     --cmap=<name>              Name of colormap to use [default: viridis]
+    --cool_cmap=<name>         Name of colormap to use for plot_cool_map, defaults to same as cmap [default: same]
     --interp_fac=<N>           Number of interpolating frames per snapshot [default: 1]
     --np=<N>                   Number of processors to run on [default: 1]
     --res=<N>                  Image resolution [default: 512]
@@ -490,7 +491,7 @@ def MakeImage(i):
 
                 ls = LightSource(azdeg=315, altdeg=45)
                 #lightness = ls.hillshade(z, vert_exag=4)
-                mapcolor = plt.get_cmap(cmap)(np.log10(sigma_1D/0.1)/2)
+                mapcolor = plt.get_cmap(cool_cmap)(np.log10(sigma_1D/0.1)/2)
                 cool_data = ls.blend_hsv(mapcolor[:,:,:3], fgas[:,:,None])
                 cool_data = np.flipud(cool_data)
                 
@@ -683,7 +684,7 @@ def MakeMovie():
 
 def make_input(files=["snapshot_000.hdf5"], rmax=False, full_box=False, center=[0,0,0],limits=[0,0],Tlimits=[0,0],energy_limits=[0,0],\
                 interp_fac=1, np=1,res=512,v_res=32, only_movie=False, fps=20, movie_name="sink_movie",dir='z',\
-                center_on_star=0, N_high=1, Tcmap="inferno", cmap="viridis",ecmap="viridis", no_movie=True,make_movie=False, outputfolder="output",\
+                center_on_star=0, N_high=1, Tcmap="inferno", cmap="viridis",ecmap="viridis", no_movie=True,make_movie=False, outputfolder="output",cool_cmap='same',\
                 plot_T_map=True,plot_v_map=False,plot_energy_map=False, sink_scale=0.1, sink_relscale=0.0025, sink_type=5, galunits=False,name_addition="",center_on_ID=0,no_pickle=False, no_timestamp=False,slice_height=0,velocity_scale=1000,arrow_color='white',energy_v_scale=1000,\
                 no_size_scale=False, center_on_densest=False, draw_axes=False, remake_only=False, rescale_hsml=1.0, smooth_center=False, highlight_wind=1.0,\
                 disable_multigrid=False):
@@ -720,6 +721,7 @@ def make_input(files=["snapshot_000.hdf5"], rmax=False, full_box=False, center=[
         "--N_high": N_high,
         "--Tcmap": Tcmap,
         "--cmap": cmap,
+        "--cool_cmap": cool_cmap,
         "--ecmap": ecmap,
         "--no_movie": no_movie,
         "--make_movie": make_movie,
@@ -776,6 +778,9 @@ def main(input):
     nproc = int(arguments["--np"])
     global n_interp; n_interp = int(arguments["--interp_fac"])
     global cmap; cmap = arguments["--cmap"]
+    global cool_cmap; cool_cmap = arguments["--cool_cmap"]
+    if cool_cmap=='same':
+        cool_cmap = cmap
     global ecmap; ecmap = arguments["--ecmap"]
     global Tcmap; Tcmap = arguments["--Tcmap"]
     global only_movie; only_movie = arguments["--only_movie"]
