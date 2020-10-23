@@ -383,18 +383,18 @@ def MakeImage(i):
                     if plot_T_map:
                         #Tmap_gas = GridAverage(u, x, h,star_center*0, L, res=res).T #should be similar to mass weighted average if particle masses roughly constant, also converting to K
                         #logTmap_gas = GridAverage(np.log10(u), x, h,star_center*0, L, res=res).T #average of log T so that it is not completely dominated by the warm ISM
-                        weight_map = GridSurfaceDensity_func(np.ones(len(u)), x, h,star_center*0, L, res=res) #sum of weights
-                        Tmap_gas = (GridSurfaceDensity_func(u, x, h,star_center*0, L, res=res)/weight_map).T #should be similar to mass weighted average if particle masses roughly constant, also converting to K
-                        logTmap_gas = (GridSurfaceDensity_func(np.log10(u), x, h,star_center*0, L, res=res)/weight_map).T #average of log T so that it is not completely dominated by the warm ISM
+                        weight_map = GridSurfaceDensity(np.ones(len(u)), x, h,star_center*0, L, res=res) #sum of weights
+                        Tmap_gas = (GridSurfaceDensity(u, x, h,star_center*0, L, res=res)/weight_map).T #should be similar to mass weighted average if particle masses roughly constant, also converting to K
+                        logTmap_gas = (GridSurfaceDensity(np.log10(u), x, h,star_center*0, L, res=res)/weight_map).T #average of log T so that it is not completely dominated by the warm ISM
                     else:
                         Tmap_gas = np.zeros((res,res))
                         logTmap_gas = np.zeros((res,res))
                     
                     v_field = np.zeros( (res,res,2) )
                     if plot_v_map:
-                        weight_map = GridSurfaceDensity_func(np.ones(len(v[:,0])), x, h,star_center*0, L, res=res) #sum of weights
-                        v_field[:,:,0] = (GridSurfaceDensity_func(v[:,0], x, h,star_center*0, L, res=res)/weight_map).T
-                        v_field[:,:,1] = (GridSurfaceDensity_func(v[:,1], x, h,star_center*0, L, res=res)/weight_map).T
+                        weight_map = GridSurfaceDensity(np.ones(len(v[:,0])), x, h,star_center*0, L, res=res) #sum of weights
+                        v_field[:,:,0] = (GridSurfaceDensity(v[:,0], x, h,star_center*0, L, res=res)/weight_map).T
+                        v_field[:,:,1] = (GridSurfaceDensity(v[:,1], x, h,star_center*0, L, res=res)/weight_map).T
                     if plot_cool_map:
                         sigma_1D = GridSurfaceDensity_func(m * v[:,2]**2, x, h,star_center*0, L, res=res).T/sigma_gas
                         v_avg = GridSurfaceDensity_func(m * v[:,2], x, h,star_center*0, L, res=res).T/sigma_gas
@@ -404,7 +404,7 @@ def MakeImage(i):
                         
                     if plot_energy_map:
                         kin_energy_weighted = m*(1.0+np.sum(v**2,axis=1)/(energy_v_scale**2))
-                        energy_map_gas = GridSurfaceDensity_func(kin_energy_weighted, x, h, star_center*0, L, res=res).T
+                        energy_map_gas = GridSurfaceDensity(kin_energy_weighted, x, h, star_center*0, L, res=res).T
                     else:
                         energy_map_gas = np.zeros((res,res))
                 else:
