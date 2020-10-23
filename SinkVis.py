@@ -644,7 +644,7 @@ def MakeMovie():
         framefile="frames.txt"
         moviefilename=movie_name
     #Use ffmpeg to create movie
-    open(framefile,'w').write('\n'.join(["file '%s'"%os.path.basename(f) for f in filenames]))
+    f=open(framefile,'w'); f.write('\n'.join(["file '%s'"%os.path.basename(f) for f in filenames])); f.close()
     os.system("ffmpeg -y -r " + str(fps) + " -f concat -i "+framefile+" -vb 20M -pix_fmt yuv420p  -q:v 0 -vcodec h264 -acodec aac -strict -2 -preset slow " + moviefilename + ".mp4")
     #Erase files, leave movie only
     if keep_only_movie:
@@ -656,11 +656,13 @@ def MakeMovie():
         #Find files
         if outputfolder:
             filenames=natsorted(glob(outputfolder+'/'+'Temperature'+name_addition+'_????.?.png'))
+            framefile=outputfolder+'/'+"frames_T.txt"
         else:
             filenames=natsorted(glob('Temperature'+name_addition+'_????.?.png'))
+            framefile="frames_T.txt"
         #Use ffmpeg to create movie
-        open(framefile,'w').write('\n'.join(["file '%s'"%f for f in filenames]))
-        os.system("ffmpeg -y -r " + str(fps) + " -f concat -i frames.txt -vb 20M -pix_fmt yuv420p -q:v 0 -vcodec h264 -acodec aac -strict -2 -preset slow " + moviefilename + "_temp.mp4")
+        f=open(framefile,'w'); f.write('\n'.join(["file '%s'"%os.path.basename(f) for f in filenames])); f.close()
+        os.system("ffmpeg -y -r " + str(fps) + " -f concat -i "+framefile+" -vb 20M -pix_fmt yuv420p -q:v 0 -vcodec h264 -acodec aac -strict -2 -preset slow " + moviefilename + "_temp.mp4")
         #Erase files, leave movie only
         if keep_only_movie:
             for i in filenames:
@@ -671,11 +673,13 @@ def MakeMovie():
         #Find files
         if outputfolder:
             filenames=natsorted(glob(outputfolder+'/'+'cool_'+name_addition+'_????.?.png'))
+            framefile=outputfolder+'/'+"frames_cool.txt"
         else:
             filenames=natsorted(glob('cool'+name_addition+'_????.?.png'))
+            framefile="frames_cool.txt"
         #Use ffmpeg to create movie
-        open(framefile,'w').write('\n'.join(["file '%s'"%f for f in filenames]))
-        os.system("ffmpeg -y -r " + str(fps) + " -f concat -i frames.txt -vb 20M -pix_fmt yuv420p -q:v 0 -vcodec h264 -acodec aac -strict -2 -preset slow " + moviefilename + "_cool.mp4")
+        f=open(framefile,'w'); f.write('\n'.join(["file '%s'"%os.path.basename(f) for f in filenames])); f.close()
+        os.system("ffmpeg -y -r " + str(fps) + " -f concat -i "+framefile+" -vb 20M -pix_fmt yuv420p -q:v 0 -vcodec h264 -acodec aac -strict -2 -preset slow " + moviefilename + "_cool.mp4")
         #Erase files, leave movie only
         if keep_only_movie:
             for i in filenames:
