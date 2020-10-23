@@ -464,11 +464,13 @@ def MakeImage(i):
                 #Gas temperature map
                 fTgas = (np.log10(Tmap_gas)-np.log10(Tlimits[0]))/np.log10(Tlimits[1]/Tlimits[0])
                 fTgas = np.clip(fTgas,0,1)
+                fTgas = np.flipud(fTgas)
                 Tdata = fTgas[:,:,np.newaxis]*plt.get_cmap(Tcmap)(fTgas)[:,:,:3] 
                 Tdata = np.clip(Tdata,0,1)
                 #Gas log temperature map
                 flogTgas = (logTmap_gas-logTlimits[0])/(logTlimits[1]-logTlimits[0])
                 flogTgas = np.clip(flogTgas,0,1)
+                flogTgas = np.flipud(flogTgas)
                 logTdata = flogTgas[:,:,np.newaxis]*plt.get_cmap(Tcmap)(flogTgas)[:,:,:3] 
                 logTdata = np.clip(logTdata,0,1)
                 
