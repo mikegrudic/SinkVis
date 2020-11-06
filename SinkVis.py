@@ -44,7 +44,7 @@ Options:
     --plot_cool_map            Plots cool map that looks cool
     --plot_fresco_stars        Plots surface density map with Hubble-like PSFs for the stars 
     --plot_cool_map_fresco     Plots cool map that uses Hubble-like PSFs for the stars
-    --fresco_param=<f>         Parameter that sets the percentile parametr of amuse-fresco, the larger the value the more extended stellar PSFs are [default: 5e-4]
+    --fresco_param=<f>         Parameter that sets the vmax parameter of amuse-fresco, the larger the value the more extended stellar PSFs are [default: 0.002]
     --fresco_mass_rescale=<f>  Parameter that determines how masses are rescaled for fresco. >1 values compress the mass range of stars, making them easier to spot [default: 1.0]
     --energy_v_scale=<v0>      Scale in the weighting of kinetic energy (w=m*(1+(v/v0)^2)), [default: 1000.0]
     --outputfolder=<name>      Specifies the folder to save the images and movies to
@@ -544,7 +544,7 @@ def MakeImage(i):
             if (plot_fresco_stars or plot_cool_map_fresco) and numpart_total[sink_type]:
                 #Get stellar PSF map from amuse-fresco
                 import SinkVis_amuse_fresco
-                data_stars_fresco = SinkVis_amuse_fresco.make_amuse_fresco_stars_only(x_star - star_center - boxsize/2 - center ,m_star,np.zeros_like(m_star),L,res=res,p=fresco_param,mass_rescale=fresco_mass_rescale)
+                data_stars_fresco = SinkVis_amuse_fresco.make_amuse_fresco_stars_only(x_star - star_center - boxsize/2 - center ,m_star,np.zeros_like(m_star),L,res=res,vmax=fresco_param,mass_rescale=fresco_mass_rescale)
             if plot_fresco_stars:
                 #Get surface density map with the color map specified
                 fgas = (np.log10(sigma_gas)-np.log10(limits[0]))/np.log10(limits[1]/limits[0])

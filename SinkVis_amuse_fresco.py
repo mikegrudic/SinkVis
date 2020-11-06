@@ -13,7 +13,7 @@ from amuse.ext import masc
 from amuse.ext.fresco import make_fresco_image
 import h5py
 
-def make_amuse_fresco_stars_only(x,mstar,age_yr,L,res=512,p=5e-4,mass_rescale=1.0,filename=None):
+def make_amuse_fresco_stars_only(x,mstar,age_yr,L,res=512,p=5e-4,mass_rescale=1.0,filename=None,vmax=None):
     number_of_stars = len(mstar)
     if (mass_rescale!=1.0):
         #rescale masses of star
@@ -29,8 +29,8 @@ def make_amuse_fresco_stars_only(x,mstar,age_yr,L,res=512,p=5e-4,mass_rescale=1.
     se.particles.add_particles(stars)
     from_se = se.particles.new_channel_to(stars)
     from_se.copy()
-    image, vmax = make_fresco_image( stars, gas, return_vmax=True,\
-        image_width=[L | units.pc,L | units.pc], image_size=[res,res],percentile=1-p)
+    image, _ = make_fresco_image( stars, gas, return_vmax=True,\
+        image_width=[L | units.pc,L | units.pc], image_size=[res,res],percentile=1-p,vmax=vmax)
     #image: (2048,2048,3) RGB
     if not(filename is None):
         #Save image to file
