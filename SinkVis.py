@@ -541,7 +541,7 @@ def MakeImage(i):
             plt.imsave(filename, data) #f.split("snapshot_")[1].split(".hdf5")[0], map)
             print(filename)
             flist = [filename]
-            if plot_fresco_stars or plot_cool_map_fresco:
+            if (plot_fresco_stars or plot_cool_map_fresco) and numpart_total[sink_type]:
                 #Get stellar PSF map from amuse-fresco
                 import SinkVis_amuse_fresco
                 data_stars_fresco = SinkVis_amuse_fresco.make_amuse_fresco_stars_only(x_star - star_center - boxsize/2 - center ,m_star,np.zeros_like(m_star),L,res=res,p=fresco_param,mass_rescale=fresco_mass_rescale)
@@ -552,8 +552,9 @@ def MakeImage(i):
                 fgas = np.flipud(fgas)
                 data_fresco = plt.get_cmap(cmap_fresco)(fgas)
                 data_fresco = np.clip(data_fresco,0,1)
-                #Blending by local max
-                data_fresco = blending(data_stars_fresco,data_fresco[:,:,:3],method='add_clip')
+                if numpart_total[sink_type]:
+                    #Blending by local max
+                    data_fresco = blending(data_stars_fresco,data_fresco[:,:,:3],method='add_clip')
                 plt.imsave(frescofilename, data_fresco)
                 flist.append(frescofilename)
             if plot_T_map:
@@ -568,7 +569,7 @@ def MakeImage(i):
                 print(efilename)
                 flist.append(efilename)
             if plot_cool_map:
-                if plot_cool_map_fresco:
+                if plot_cool_map_fresco and numpart_total[sink_type]:
                     cool_data = blending(data_stars_fresco,cool_data[:,:,:3],method='add_clip')
                 plt.imsave(coolfilename, cool_data)
                 print(coolfilename)
