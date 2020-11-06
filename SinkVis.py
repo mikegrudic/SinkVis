@@ -676,7 +676,7 @@ def MakeImage(i):
             
 
 def MakeMovie():
-    #Plotting surface density
+    #Movie about surface density
     #Find files
     if outputfolder:
         filenames=natsorted(glob(outputfolder+'/'+'SurfaceDensity'+name_addition+'_????.?.png'))
@@ -694,7 +694,7 @@ def MakeMovie():
         for i in filenames:
             os.remove(i)
     os.remove(framefile)
-    #Plotting temperature
+    #Movie about temperature
     if plot_T_map:
         #Find files
         if outputfolder:
@@ -711,18 +711,35 @@ def MakeMovie():
             for i in filenames:
                 os.remove(i)
         os.remove(framefile)
-    #Plotting coolness
+    #Movie about coolness
     if plot_cool_map:
         #Find files
         if outputfolder:
             filenames=natsorted(glob(outputfolder+'/'+'cool_'+name_addition+'_????.?.png'))
             framefile=outputfolder+'/'+"frames_cool.txt"
         else:
-            filenames=natsorted(glob('cool'+name_addition+'_????.?.png'))
+            filenames=natsorted(glob('cool_'+name_addition+'_????.?.png'))
             framefile="frames_cool.txt"
         #Use ffmpeg to create movie
         f=open(framefile,'w'); f.write('\n'.join(["file '%s'"%os.path.basename(f) for f in filenames])); f.close()
         os.system("ffmpeg -y -r " + str(fps) + " -f concat -i "+framefile+" -vb 20M -pix_fmt yuv420p -q:v 0 -vcodec h264 -acodec aac -strict -2 -preset slow " + moviefilename + "_cool.mp4")
+        #Erase files, leave movie only
+        if keep_only_movie:
+            for i in filenames:
+                os.remove(i)
+        os.remove(framefile)
+    #Movie about surface density with amuse-fresco stars
+    if plot_fresco_stars:
+        #Find files
+        if outputfolder:
+            filenames=natsorted(glob(outputfolder+'/'+'SurfaceDensity_fresco'+name_addition+'_????.?.png'))
+            framefile=outputfolder+'/'+"frames_fresco.txt"
+        else:
+            filenames=natsorted(glob('SurfaceDensity_fresco'+name_addition+'_????.?.png'))
+            framefile="frames_fresco.txt"
+        #Use ffmpeg to create movie
+        f=open(framefile,'w'); f.write('\n'.join(["file '%s'"%os.path.basename(f) for f in filenames])); f.close()
+        os.system("ffmpeg -y -r " + str(fps) + " -f concat -i "+framefile+" -vb 20M -pix_fmt yuv420p -q:v 0 -vcodec h264 -acodec aac -strict -2 -preset slow " + moviefilename + "_fresco.mp4")
         #Erase files, leave movie only
         if keep_only_movie:
             for i in filenames:
