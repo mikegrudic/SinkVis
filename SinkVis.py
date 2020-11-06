@@ -15,6 +15,7 @@ Options:
     --ecmap=<name>             Name of colormap to use for kinetic energy [default: viridis]
     --Tcmap=<name>             Name of colormap to use for temperature [default: inferno]
     --cmap=<name>              Name of colormap to use [default: viridis]
+    --cmap_fresco=<name>       Name of colormap to use for plot_fresco_stars, defaults to same as cmap [default: same]
     --cool_cmap=<name>         Name of colormap to use for plot_cool_map, defaults to same as cmap [default: same]
     --interp_fac=<N>           Number of interpolating frames per snapshot [default: 1]
     --np=<N>                   Number of processors to run on [default: 1]
@@ -41,6 +42,10 @@ Options:
     --plot_v_map               Overplots velocity map on plots
     --plot_energy_map          Plots kinetic energy map
     --plot_cool_map            Plots cool map that looks cool
+    --plot_fresco_stars        Plots surface density map with Hubble-like PSFs for the stars 
+    --plot_cool_map_fresco     Plots cool map that uses Hubble-like PSFs for the stars
+    --fresco_param=<f>         Parameter that sets the percentile parametr of amuse-fresco, the larger the value the more extended stellar PSFs are [default: 5e-4]
+    --fresco_mass_rescale=<f>  Parameter that determines how masses are rescaled for fresco. >1 values compress the mass range of stars, making them easier to spot [default: 1.0]
     --energy_v_scale=<v0>      Scale in the weighting of kinetic energy (w=m*(1+(v/v0)^2)), [default: 1000.0]
     --outputfolder=<name>      Specifies the folder to save the images and movies to
     --name_addition=<name>     Extra string to be put after the name of the ouput files, defaults to empty string       
@@ -67,7 +72,7 @@ import h5py
 import matplotlib
 matplotlib.use('Agg')
 from matplotlib import pyplot as plt
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageChops
 from matplotlib.colors import LightSource
 import numpy as np
 from multiprocessing import Pool
@@ -140,6 +145,24 @@ def find_sink_in_densest_gas(snapnum):
             
 def CoordTransform(x):
     return np.roll(x, {'z': 0, 'y': 1, 'x': 2}[arguments["--dir"]], axis=1)
+
+def sigmoid(x,x0,scale):
+    return 1.0/(1.0 + np.exp(-(x-x0)/scale))
+
+def blending(data1,data2,method='add_clip',param1=0.5,param2=0.2):
+    #Blends two images with different methods. Input is assumed in the form of (N,N,3) RGB images
+    if method=='max': #takes maximum of each channel
+        return np.maximum(data1,data2)
+    elif method=='mask': #adds the two images using a mask that prioritizes data1, parameters set by param1 and param2
+        mask = np.sum(data1,axis=2); mask = mask/np.max(mask[:]);
+        mask = sigmoid(mask,param1,param2)
+        return data1*mask[:,:,None]+data2*(1-mask[:,:,None])  
+    elif method=='alpha': #add the two images using a constants alpha set by param1
+        return (data1+data2)/np.max((data1+data2)[:])
+    elif method=='add_norm': #add the two images and normalize to max
+        return (param1*data1+(1-param1)*data2)
+    elif method=='add_clip': #add the two images and clip to stay in limits
+        return np.clip(data1+data2,0,1)
 
 def StarColor(mass_in_msun,cmap):
     if cmap=='afmhot' or cmap=='inferno':
@@ -330,6 +353,7 @@ def MakeImage(i):
                 if numpart_total[sink_type]:
                     x_star = float(k)/n_interp * x2s + (n_interp-float(k))/n_interp * x1s
                     v_star = float(k)/n_interp * v2s + (n_interp-float(k))/n_interp * v1s
+                    m_star = float(k)/n_interp * m1s + (n_interp-float(k))/n_interp * m2s
                 else:
                     x_star = []; m_star = []; v_star = [];
                 star_center = np.zeros(3)
@@ -491,25 +515,25 @@ def MakeImage(i):
             if plot_cool_map:
                 fgas = (np.log10(sigma_gas)-np.log10(limits[0]))/np.log10(limits[1]/limits[0])
 #                fgas = np.clip(fgas,0,1)
-
                 ls = LightSource(azdeg=315, altdeg=45)
                 #lightness = ls.hillshade(z, vert_exag=4)
                 mapcolor = plt.get_cmap(cool_cmap)(np.log10(sigma_1D/0.1)/2)
                 cool_data = ls.blend_hsv(mapcolor[:,:,:3], fgas[:,:,None])
                 cool_data = np.flipud(cool_data)
                 
-                
             local_name_addition = name_addition
             if sink_ID and (len(sink_IDs_to_center_on)>1):
                 local_name_addition = '_%d'%(sink_ID) + local_name_addition
             file_number = file_numbers[i]            
             filename = "SurfaceDensity%s_%s.%s.png"%(local_name_addition,str(file_number).zfill(4),k)
+            frescofilename = "SurfaceDensity_fresco%s_%s.%s.png"%(local_name_addition,str(file_number).zfill(4),k)
             Tfilename = "Temperature%s_%s.%s.png"%(local_name_addition,str(file_number).zfill(4),k)
             efilename = "KineticEnergy%s_%s.%s.png"%(local_name_addition,str(file_number).zfill(4),k)
             logTfilename = "LogTemperature%s_%s.%s.png"%(local_name_addition,str(file_number).zfill(4),k)
             coolfilename = "cool_%s_%s.%s.png"%(local_name_addition,str(file_number).zfill(4),k)
             if outputfolder:
                 filename=outputfolder+'/'+filename
+                frescofilename=outputfolder+'/'+frescofilename
                 Tfilename=outputfolder+'/'+Tfilename
                 efilename=outputfolder+'/'+efilename
                 logTfilename=outputfolder+'/'+logTfilename
@@ -517,6 +541,18 @@ def MakeImage(i):
             plt.imsave(filename, data) #f.split("snapshot_")[1].split(".hdf5")[0], map)
             print(filename)
             flist = [filename]
+            if plot_fresco_stars or plot_cool_map_fresco:
+                #Get stellar PSF map from amuse-fresco
+                import SinkVis_amuse_fresco
+                data_stars_fresco = SinkVis_amuse_fresco.make_amuse_fresco_stars_only(x_star - star_center - boxsize/2 - center ,m_star,np.zeros_like(m_star),L,res=res,p=fresco_param,mass_rescale=fresco_mass_rescale)
+            if plot_fresco_stars:
+                #Get surface density map with the color map specified
+                data_fresco = plt.get_cmap(cmap_fresco)(fgas)
+                data_fresco = np.clip(data_fresco,0,1)
+                #Blending by local max
+                data_fresco = blending(data_stars_fresco,data_fresco[:,:,:3],method='add_clip')
+                plt.imsave(frescofilename, data_fresco)
+                flist.append(frescofilename)
             if plot_T_map:
                 plt.imsave(Tfilename, Tdata) #f.split("snapshot_")[1].split(".hdf5")[0], map)
                 print(Tfilename)
@@ -529,6 +565,8 @@ def MakeImage(i):
                 print(efilename)
                 flist.append(efilename)
             if plot_cool_map:
+                if plot_cool_map_fresco:
+                    cool_data = blending(data_stars_fresco,cool_data[:,:,:3],method='add_clip')
                 plt.imsave(coolfilename, cool_data)
                 print(coolfilename)
                 flist.append(coolfilename)
@@ -563,7 +601,7 @@ def MakeImage(i):
                     else:
                         time_text="%3.2gyr"%(time*979*1e6)
                     draw.text((gridres/16, gridres/24), time_text, font=font)
-                if numpart_total[sink_type]:
+                if numpart_total[sink_type] and (not ('SurfaceDensity_fresco' in fname)) and (not (plot_cool_map_fresco and ('cool_' in fname)) ):
                     d = aggdraw.Draw(F)
                     pen = aggdraw.Pen(Star_Edge_Color(cmap),1) #gridres/800
                     for j in np.arange(len(x_star))[m_star>0]:
@@ -691,8 +729,8 @@ def MakeMovie():
 
 def make_input(files=["snapshot_000.hdf5"], rmax=False, full_box=False, center=[0,0,0],limits=[0,0],Tlimits=[0,0],energy_limits=[0,0],\
                 interp_fac=1, np=1,res=512,v_res=32, keep_only_movie=False, fps=20, movie_name="sink_movie",dir='z',\
-                center_on_star=0, N_high=1, Tcmap="inferno", cmap="viridis",ecmap="viridis", no_movie=True,make_movie=False, make_movie_only=False,outputfolder="output",cool_cmap='same',\
-                plot_T_map=True,plot_v_map=False,plot_energy_map=False, sink_scale=0.1, sink_relscale=0.0025, sink_type=5, galunits=False,name_addition="",center_on_ID=0,no_pickle=False, no_timestamp=False,slice_height=0,velocity_scale=1000,arrow_color='white',energy_v_scale=1000,\
+                center_on_star=0, N_high=1, Tcmap="inferno", cmap="viridis",ecmap="viridis", no_movie=True,make_movie=False, make_movie_only=False,outputfolder="output",cool_cmap='same',cmap_fresco='same',plot_cool_map_fresco=False,fresco_param=5e-4,fresco_mass_rescale=1.0,\
+                plot_T_map=True,plot_v_map=False,plot_energy_map=False,plot_fresco_stars=False,sink_scale=0.1, sink_relscale=0.0025, sink_type=5, galunits=False,name_addition="",center_on_ID=0,no_pickle=False, no_timestamp=False,slice_height=0,velocity_scale=1000,arrow_color='white',energy_v_scale=1000,\
                 no_size_scale=False, center_on_densest=False, draw_axes=False, remake_only=False, rescale_hsml=1.0, smooth_center=False, highlight_wind=1.0,\
                 disable_multigrid=False):
     if (not isinstance(files, list)):
@@ -728,6 +766,7 @@ def make_input(files=["snapshot_000.hdf5"], rmax=False, full_box=False, center=[
         "--N_high": N_high,
         "--Tcmap": Tcmap,
         "--cmap": cmap,
+        "--cmap_fresco": cmap_fresco,
         "--cool_cmap": cool_cmap,
         "--ecmap": ecmap,
         "--no_movie": no_movie,
@@ -737,7 +776,11 @@ def make_input(files=["snapshot_000.hdf5"], rmax=False, full_box=False, center=[
         "--plot_T_map": plot_T_map,
         "--plot_cool_map": plot_cool_map,
         "--plot_energy_map": plot_energy_map,
+        "--plot_fresco_stars": plot_fresco_stars,
+        "--plot_cool_map_fresco": plot_cool_map_fresco,
         "--plot_v_map": plot_v_map,
+        "--fresco_mass_rescale": fresco_mass_rescale,
+        "--fresco_param": fresco_param,
         "--name_addition": name_addition,
         "--no_timestamp": no_timestamp,
         "--no_size_scale": no_size_scale,
@@ -789,8 +832,13 @@ def main(input):
     global cool_cmap; cool_cmap = arguments["--cool_cmap"]
     if cool_cmap=='same':
         cool_cmap = cmap
+    global cmap_fresco; cmap_fresco = arguments["--cmap_fresco"]
+    if cmap_fresco=='same':
+        cmap_fresco = cmap
     global ecmap; ecmap = arguments["--ecmap"]
     global Tcmap; Tcmap = arguments["--Tcmap"]
+    global fresco_param; fresco_param = float(arguments["--fresco_param"])
+    global fresco_mass_rescale; fresco_mass_rescale = float(arguments["--fresco_mass_rescale"])
     global keep_only_movie; keep_only_movie = arguments["--keep_only_movie"]
     global galunits; galunits = arguments["--galunits"]
     global no_movie
@@ -805,8 +853,12 @@ def main(input):
     global disable_multigrid; disable_multigrid = arguments["--disable_multigrid"]
     global plot_T_map; plot_T_map = arguments["--plot_T_map"]
     global plot_energy_map; plot_energy_map = arguments["--plot_energy_map"]
+    global plot_fresco_stars; plot_fresco_stars = arguments["--plot_fresco_stars"]
     global plot_v_map; plot_v_map = arguments["--plot_v_map"]
     global plot_cool_map; plot_cool_map = arguments["--plot_cool_map"]
+    global plot_cool_map_fresco; plot_cool_map_fresco = arguments["--plot_cool_map_fresco"]
+    if plot_cool_map_fresco:
+        plot_cool_map = True
     global no_pickle; no_pickle = arguments["--no_pickle"]
     global remake_only; remake_only = arguments["--remake_only"]
     global no_timestamp; no_timestamp = arguments["--no_timestamp"]
