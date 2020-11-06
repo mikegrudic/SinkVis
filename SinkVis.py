@@ -547,6 +547,9 @@ def MakeImage(i):
                 data_stars_fresco = SinkVis_amuse_fresco.make_amuse_fresco_stars_only(x_star - star_center - boxsize/2 - center ,m_star,np.zeros_like(m_star),L,res=res,p=fresco_param,mass_rescale=fresco_mass_rescale)
             if plot_fresco_stars:
                 #Get surface density map with the color map specified
+                fgas = (np.log10(sigma_gas)-np.log10(limits[0]))/np.log10(limits[1]/limits[0])
+                fgas = np.clip(fgas,0,1)
+                fgas = np.flipud(fgas)
                 data_fresco = plt.get_cmap(cmap_fresco)(fgas)
                 data_fresco = np.clip(data_fresco,0,1)
                 #Blending by local max
