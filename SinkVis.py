@@ -353,7 +353,7 @@ def MakeImage(i):
                 if numpart_total[sink_type]:
                     x_star = float(k)/n_interp * x2s + (n_interp-float(k))/n_interp * x1s
                     v_star = float(k)/n_interp * v2s + (n_interp-float(k))/n_interp * v1s
-                    m_star = float(k)/n_interp * m1s + (n_interp-float(k))/n_interp * m2s
+                    m_star = float(k)/n_interp * m2s + (n_interp-float(k))/n_interp * m1s
                 else:
                     x_star = []; m_star = []; v_star = [];
                 star_center = np.zeros(3)
@@ -920,9 +920,8 @@ def main(input):
     if ( ( (limits[0]==0) or (Tlimits[0]==0 and plot_T_map) ) and (len(filenames) > 1) ):
         print("Surface density or temperature limits not set, running final snapshot first to guess the appropriate values.")
         MakeImage(len(filenames)-1)
-        
     if not make_movie_only:
-        if nproc>1:
+        if (nproc>1) and (len(filenames) > 1):
             Pool(nproc).map(MakeImage, (f for f in range(len(filenames))), chunksize=1)
         else:
             [MakeImage(i) for i in range(len(filenames))]
