@@ -45,7 +45,7 @@ Options:
     --plot_fresco_stars        Plots surface density map with Hubble-like PSFs for the stars 
     --plot_cool_map_fresco     Plots cool map that uses Hubble-like PSFs for the stars
     --fresco_param=<f>         Parameter that sets the vmax parameter of amuse-fresco, the larger the value the more extended stellar PSFs are [default: 0.002]
-    --fresco_mass_rescale=<f>  Parameter that determines how masses are rescaled for fresco. >1 values compress the mass range of stars, making them easier to spot [default: 1.0]
+    --fresco_mass_rescale=<min,max>  Parameter that determines how masses are rescaled for fresco. If set stellar masses are roughly clipped between min and max values [default: 0,0]
     --energy_v_scale=<v0>      Scale in the weighting of kinetic energy (w=m*(1+(v/v0)^2)), [default: 1000.0]
     --outputfolder=<name>      Specifies the folder to save the images and movies to
     --name_addition=<name>     Extra string to be put after the name of the ouput files, defaults to empty string       
@@ -750,7 +750,7 @@ def MakeMovie():
 
 def make_input(files=["snapshot_000.hdf5"], rmax=False, full_box=False, center=[0,0,0],limits=[0,0],Tlimits=[0,0],energy_limits=[0,0],\
                 interp_fac=1, np=1,res=512,v_res=32, keep_only_movie=False, fps=20, movie_name="sink_movie",dir='z',\
-                center_on_star=0, N_high=1, Tcmap="inferno", cmap="viridis",ecmap="viridis", no_movie=True,make_movie=False, make_movie_only=False,outputfolder="output",cool_cmap='same',cmap_fresco='same',plot_cool_map_fresco=False,fresco_param=5e-4,fresco_mass_rescale=1.0,\
+                center_on_star=0, N_high=1, Tcmap="inferno", cmap="viridis",ecmap="viridis", no_movie=True,make_movie=False, make_movie_only=False,outputfolder="output",cool_cmap='same',cmap_fresco='same',plot_cool_map_fresco=False,fresco_param=5e-4,fresco_mass_rescale=[0.0,0.0],\
                 plot_T_map=True,plot_v_map=False,plot_energy_map=False,plot_fresco_stars=False,sink_scale=0.1, sink_relscale=0.0025, sink_type=5, galunits=False,name_addition="",center_on_ID=0,no_pickle=False, no_timestamp=False,slice_height=0,velocity_scale=1000,arrow_color='white',energy_v_scale=1000,\
                 no_size_scale=False, center_on_densest=False, draw_axes=False, remake_only=False, rescale_hsml=1.0, smooth_center=False, highlight_wind=1.0,\
                 disable_multigrid=False):
@@ -859,7 +859,7 @@ def main(input):
     global ecmap; ecmap = arguments["--ecmap"]
     global Tcmap; Tcmap = arguments["--Tcmap"]
     global fresco_param; fresco_param = float(arguments["--fresco_param"])
-    global fresco_mass_rescale; fresco_mass_rescale = float(arguments["--fresco_mass_rescale"])
+    global fresco_mass_rescale; fresco_mass_rescale = np.array([float(c) for c in arguments["--fresco_mass_rescale"].split(',')])
     global keep_only_movie; keep_only_movie = arguments["--keep_only_movie"]
     global galunits; galunits = arguments["--galunits"]
     global no_movie
