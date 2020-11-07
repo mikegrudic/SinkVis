@@ -15,6 +15,7 @@ import h5py
 
 def make_amuse_fresco_stars_only(x,mstar,age_yr,L,res=512,p=5e-4,mass_rescale=[0,0],filename=None,vmax=None):
     number_of_stars = len(mstar)
+    mstar_new = mstar
     if (mass_rescale[0]!=0.0) or (mass_rescale[1]!=0.0):
         if (mass_rescale[0]==0.0): mass_rescale[0]=np.min(mstar)
         if (mass_rescale[1]==0.0): mass_rescale[1]=np.max(mstar)

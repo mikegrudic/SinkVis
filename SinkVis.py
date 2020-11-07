@@ -45,7 +45,7 @@ Options:
     --plot_fresco_stars        Plots surface density map with Hubble-like PSFs for the stars 
     --plot_cool_map_fresco     Plots cool map that uses Hubble-like PSFs for the stars
     --fresco_param=<f>         Parameter that sets the vmax parameter of amuse-fresco, the larger the value the more extended stellar PSFs are [default: 0.002]
-    --fresco_mass_rescale=<min,max>  Parameter that determines how masses are rescaled for fresco. If set stellar masses are roughly clipped between min and max values [default: 0,0]
+    --fresco_mass_rescale=<min,max>  Parameter that determines how masses are rescaled for fresco. Stellar masses are roughly clipped between min and max values, useful to define a max as massive stars are extremely luminous and dominate the image [default: 0,5]
     --energy_v_scale=<v0>      Scale in the weighting of kinetic energy (w=m*(1+(v/v0)^2)), [default: 1000.0]
     --outputfolder=<name>      Specifies the folder to save the images and movies to
     --name_addition=<name>     Extra string to be put after the name of the ouput files, defaults to empty string       
