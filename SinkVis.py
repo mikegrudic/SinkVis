@@ -354,6 +354,12 @@ def MakeImage(i):
                     x_star = float(k)/n_interp * x2s + (n_interp-float(k))/n_interp * x1s
                     v_star = float(k)/n_interp * v2s + (n_interp-float(k))/n_interp * v1s
                     m_star = float(k)/n_interp * m2s + (n_interp-float(k))/n_interp * m1s
+                    jump_ind1 = (x2s - x1s) > (boxsize/2) #assuming no particle travels more than half of the the box in a single snapshot
+                    jump_ind2 = (x1s - x2s) > (boxsize/2)
+                    if np.any(jump_ind1):
+                        x_star[jump_ind1] = (float(k)/n_interp * (x2s[jump_ind1]-boxsize) + (n_interp-float(k))/n_interp * x1s[jump_ind1])%boxsize 
+                    if np.any(jump_ind2):
+                        x_star[jump_ind2] = (float(k)/n_interp * x2s[jump_ind2] + (n_interp-float(k))/n_interp * (x1s[jump_ind2]-boxsize))%boxsize 
                 else:
                     x_star = []; m_star = []; v_star = [];
                 star_center = np.zeros(3)
