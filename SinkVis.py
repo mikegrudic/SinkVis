@@ -17,6 +17,7 @@ Options:
     --cmap=<name>              Name of colormap to use [default: viridis]
     --cmap_fresco=<name>       Name of colormap to use for plot_fresco_stars, defaults to same as cmap [default: same]
     --cool_cmap=<name>         Name of colormap to use for plot_cool_map, defaults to same as cmap [default: same]
+    --abundance_map=<N>        Will plot the surface density of metal species N (so P[:].Metallicity[N] in GIZMO),off by default [default: -1]
     --interp_fac=<N>           Number of interpolating frames per snapshot [default: 1]
     --np=<N>                   Number of processors to run on [default: 1]
     --res=<N>                  Image resolution [default: 512]
@@ -87,6 +88,9 @@ import re
 import pickle
 
 wind_ids = np.array([1913298393, 1913298394])
+
+def pickle_filename_gen(snapnum,k,n_interp,r,res,center,sink_ID):
+    return "Sinkvis_snap%d_%d_%d_r%g_res%d_c%g_%g_%g_0_%d_%s"%(snapnum,k,n_interp,r,res,center[0],center[1],center[2],sink_ID,arguments["--dir"])+abundance_text+rescale_text+slice_text+smooth_text+energy_v_scale_text+".pickle"
 
 def find_sink_in_densest_gas(snapnum):
     #Find the N_high sinks in snapshot near the densest gas and return their ID, otherwise return 0
@@ -208,7 +212,7 @@ def MakeImage(i):
         #Check if all relevant pickle files exist
         all_pickle_exist = True
         for k in range(n_interp):
-            pickle_filename = "Sinkvis_snap%d_%d_%d_r%g_res%d_c%g_%g_%g_0_%d_%s"%(snapnum1,k,n_interp,r,res,center[0],center[1],center[2],sink_ID,arguments["--dir"])+rescale_text+slice_text+smooth_text+energy_v_scale_text+".pickle"
+            pickle_filename = pickle_filename_gen(snapnum1,k,n_interp,r,res,center,sink_ID)
             if outputfolder:
                 pickle_filename=outputfolder+'/'+pickle_filename
             all_pickle_exist = all_pickle_exist & os.path.exists(pickle_filename)
@@ -304,6 +308,9 @@ def MakeImage(i):
                 id2[np.in1d(id2,doubles)]=-1
 
                 id1_order, id2_order = id1.argsort(), id2.argsort()
+                if abundance_map>-1:
+                    abundance1 = (np.array(load_from_snapshot("Metallicity",0,datafolder,snapnum1))[:,abundance_map])[id1_order]
+                    abundance2 = (np.array(load_from_snapshot("Metallicity",0,datafolder,snapnum2))[:,abundance_map])[id2_order]
                 x1, x2 = length_unit*np.array(load_from_snapshot("Coordinates",0,datafolder,snapnum1))[id1_order], length_unit*np.array(load_from_snapshot("Coordinates",0,datafolder,snapnum2))[id2_order]
                 x1, x2 = CoordTransform(x1), CoordTransform(x2)
                 if not galunits:
@@ -330,9 +337,11 @@ def MakeImage(i):
                     ids_in_slice1=0; ids_in_slice2=0; dx=0 #unload
                 idx1 = np.in1d(np.sort(id1),common_ids)
                 idx2 = np.in1d(np.sort(id2),common_ids)
-                x1 = x1[idx1]; u1 = u1[idx1]; h1 = h1[idx1]*rescale_hsml; m1 = m1[idx1]; id1 = np.sort(id1)[idx1]; v1 = v1[idx1];
-                x2 = x2[idx2]; u2 = u2[idx2]; h2 = h2[idx2]*rescale_hsml; m2 = m2[idx2]; id2 = np.sort(id2)[idx2]; v2 = v2[idx2];
+                x1 = x1[idx1]; u1 = u1[idx1]; h1 = h1[idx1]*rescale_hsml; m1 = m1[idx1]; id1 = np.sort(id1)[idx1]; v1 = v1[idx1]; 
+                x2 = x2[idx2]; u2 = u2[idx2]; h2 = h2[idx2]*rescale_hsml; m2 = m2[idx2]; id2 = np.sort(id2)[idx2]; v2 = v2[idx2]; 
                 m = m2 # mass to actually use in render
+                if abundance_map>-1:
+                    abundance1 = abundance1[idx1]; abundance2 = abundance1[idx2]
                 if highlight_wind != 1:
                     m[id2 < 0] *= highlight_wind
                 
@@ -346,7 +355,7 @@ def MakeImage(i):
                 k_in_filename = k
             else:
                 k_in_filename = 0
-            pickle_filename = "Sinkvis_snap%d_%d_%d_r%g_res%d_c%g_%g_%g_0_%d_%s"%(snapnum1,k_in_filename,n_interp,r,res,center[0],center[1],center[2],sink_ID,arguments["--dir"])+rescale_text+slice_text+smooth_text+energy_v_scale_text+".pickle"
+            pickle_filename = pickle_filename_gen(snapnum1,k,n_interp,r,res,center,sink_ID)
             if outputfolder:
                 pickle_filename=outputfolder+'/'+pickle_filename
             if not os.path.exists(pickle_filename):
@@ -409,7 +418,13 @@ def MakeImage(i):
 
                     h = float(k)/n_interp * h2 + (n_interp-float(k))/n_interp * h1
                     h = np.clip(h,L/res, 1e100)
-                    sigma_gas = GridSurfaceDensity_func(m, x, h, star_center*0, L, res=res).T
+                    
+                    
+                    if abundance_map>-1:
+                        abundance = float(k)/n_interp * abundance2 + (n_interp-float(k))/n_interp * abundance1
+                        sigma_gas = GridSurfaceDensity_func(m*abundance, x, h, star_center*0, L, res=res).T
+                    else:
+                        sigma_gas = GridSurfaceDensity_func(m, x, h, star_center*0, L, res=res).T
                     if plot_T_map:
                         #Tmap_gas = GridAverage(u, x, h,star_center*0, L, res=res).T #should be similar to mass weighted average if particle masses roughly constant, also converting to K
                         #logTmap_gas = GridAverage(np.log10(u), x, h,star_center*0, L, res=res).T #average of log T so that it is not completely dominated by the warm ISM
@@ -755,7 +770,7 @@ def MakeMovie():
             
 
 def make_input(files=["snapshot_000.hdf5"], rmax=False, full_box=False, center=[0,0,0],limits=[0,0],Tlimits=[0,0],energy_limits=[0,0],\
-                interp_fac=1, np=1,res=512,v_res=32, keep_only_movie=False, fps=20, movie_name="sink_movie",dir='z',\
+                interp_fac=1, np=1,res=512,v_res=32, keep_only_movie=False, fps=20, movie_name="sink_movie",dir='z',abundance_map=-1,\
                 center_on_star=0, N_high=1, Tcmap="inferno", cmap="viridis",ecmap="viridis", no_movie=True,make_movie=False, make_movie_only=False,outputfolder="output",cool_cmap='same',cmap_fresco='same',plot_cool_map_fresco=False,fresco_param=5e-4,fresco_mass_rescale=[0.0,0.0],\
                 plot_T_map=True,plot_v_map=False,plot_energy_map=False,plot_fresco_stars=False,sink_scale=0.1, sink_relscale=0.0025, sink_type=5, galunits=False,name_addition="",center_on_ID=0,no_pickle=False, no_timestamp=False,slice_height=0,velocity_scale=1000,arrow_color='white',energy_v_scale=1000,\
                 no_size_scale=False, center_on_densest=False, draw_axes=False, remake_only=False, rescale_hsml=1.0, smooth_center=False, highlight_wind=1.0,\
@@ -796,6 +811,7 @@ def make_input(files=["snapshot_000.hdf5"], rmax=False, full_box=False, center=[
         "--cmap_fresco": cmap_fresco,
         "--cool_cmap": cool_cmap,
         "--ecmap": ecmap,
+        "--abundance_map": abundance_map,
         "--no_movie": no_movie,
         "--make_movie": make_movie,
         "--make_movie_only":make_movie_only,
@@ -822,6 +838,7 @@ def make_input(files=["snapshot_000.hdf5"], rmax=False, full_box=False, center=[
 
 def main(input):
     global arguments; arguments=input
+    global no_pickle; no_pickle = arguments["--no_pickle"]
     global filenames; filenames = natsorted(arguments["<files>"])
     if os.path.isdir(filenames[0]):
         namestring="snapdir"
@@ -864,6 +881,12 @@ def main(input):
         cmap_fresco = cmap
     global ecmap; ecmap = arguments["--ecmap"]
     global Tcmap; Tcmap = arguments["--Tcmap"]
+    global abundance_map; abundance_map = int(arguments["--abundance_map"])
+    global abundance_text
+    if (abundance_map!=-1.0):
+        abundance_text='_%d'%(abundance_map)
+    else:
+        abundance_text=''
     global fresco_param; fresco_param = float(arguments["--fresco_param"])
     global fresco_mass_rescale; fresco_mass_rescale = np.array([float(c) for c in arguments["--fresco_mass_rescale"].split(',')])
     global keep_only_movie; keep_only_movie = arguments["--keep_only_movie"]
@@ -886,7 +909,6 @@ def main(input):
     global plot_cool_map_fresco; plot_cool_map_fresco = arguments["--plot_cool_map_fresco"]
     if plot_cool_map_fresco:
         plot_cool_map = True
-    global no_pickle; no_pickle = arguments["--no_pickle"]
     global remake_only; remake_only = arguments["--remake_only"]
     global no_timestamp; no_timestamp = arguments["--no_timestamp"]
     global draw_axes; draw_axes = arguments["--draw_axes"]
