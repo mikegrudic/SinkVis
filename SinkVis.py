@@ -334,6 +334,7 @@ def MakeImage(i):
                 m1, m2 = mass_unit*np.array(load_from_snapshot("Masses",0,datafolder,snapnum1))[id1_order], mass_unit*np.array(load_from_snapshot("Masses",0,datafolder,snapnum2))[id2_order]
                 if plot_B_map or calculate_all_maps:
                     B1, B2 = B_unit*np.array(load_from_snapshot("MagneticField",0,datafolder,snapnum1))[id1_order], B_unit*np.array(load_from_snapshot("MagneticField",0,datafolder,snapnum2))[id2_order]
+                    B1, B2 = CoordTransform(B1), CoordTransform(B2)
                 # take only the cells that are in both snaps
                 common_ids = np.intersect1d(id1,id2)
                 if slice_height:
