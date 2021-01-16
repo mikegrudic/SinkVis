@@ -22,8 +22,9 @@ Options:
     --np=<N>                   Number of processors to run on [default: 1]
     --res=<N>                  Image resolution [default: 512]
     --v_res=<N>                Resolution for overplotted velocity field if plot_v_map is on [default: 32]
-    --velocity_scale=<f>       Scale for the quivers when using plot_v_map, in m/s [default: 1000]
-    --arrow_color=<name>       Color of the velocity arrows if plot_v_map is enabled, [default: white]
+    --vector_quiver_map        If enabled the velocity map will be quivers, if not then field line maps
+    --velocity_scale=<f>       Scale for the quivers when using plot_v_map with vector_quiver_map, in m/s [default: 1000]
+    --arrow_color=<name>       Color of the velocity arrows if plot_v_map is enabled with vector_quiver_map, [default: white]
     --slice_height=<pc>        Calculation is only done on particles within a box of 2*slice_height size around the center (mostly for zoom-ins), no slicing if set to zero [default: 0]
     --keep_only_movie          Only the movie is saved, the images are removed at the end
     --no_movie                 Does not create a movie, only makes images (legacy, default behavior now is not to make a movie)
@@ -40,9 +41,11 @@ Options:
     --center_on_ID=<ID>        Center image on sink particle with specific ID, does not center if zero [default: 0]
     --galunits                 Use default GADGET units
     --plot_T_map               Plots both surface density and average temperature maps
+    --plot_B_map               Overplots magnetic field map on plots
     --plot_v_map               Overplots velocity map on plots
     --plot_energy_map          Plots kinetic energy map
     --plot_cool_map            Plots cool map that looks cool
+    --calculate_all_maps       Calculates all data for the pickle files, even if they won't get plotted
     --plot_fresco_stars        Plots surface density map with Hubble-like PSFs for the stars 
     --plot_cool_map_fresco     Plots cool map that uses Hubble-like PSFs for the stars
     --fresco_param=<f>         Parameter that sets the vmax parameter of amuse-fresco, the larger the value the more extended stellar PSFs are [default: 0.002]
@@ -195,10 +198,8 @@ def MakeImage(i):
     else:
         GridSurfaceDensity_func = GridSurfaceDensityMultigrid
     
-#    print(i)
     snapnum1=file_numbers[i]
     snapnum2=(file_numbers[min(i+1,len(filenames)-1)] if n_interp>1 else snapnum1)
-    
     sink_IDs_to_center_on = np.array([center_on_ID]) #default, will not center
     if center_on_densest:
         #Find the IDs of the sinks with the densest gas nearby 
@@ -216,16 +217,29 @@ def MakeImage(i):
             if outputfolder:
                 pickle_filename=outputfolder+'/'+pickle_filename
             all_pickle_exist = all_pickle_exist & os.path.exists(pickle_filename)
-        if (all_pickle_exist and plot_T_map):
-            #We have the files but we should check whether they have temperature data. If not we are redoing them
-                infile = open(pickle_filename, 'rb') 
-                temp = pickle.load(infile)
+            if all_pickle_exist: #so we have the file, but does it have all th data we need
+                infile = open(pickle_filename, 'rb') #let's open the last one
+                dict_from_pickle = pickle.load(infile)
                 infile.close()
-                Tmap_present = np.max(np.abs(temp[3])) #it is zero if we saved an empty array
-                all_pickle_exist = all_pickle_exist and Tmap_present
+                #Let's go over what we need for this run
+                if isinstance(dict_from_pickle,dict):
+                    #Basics
+                    all_pickle_exist = all_pickle_exist & ('time' in dict_from_pickle) & ('numpart_total' in dict_from_pickle) & ('sigma_gas' in dict_from_pickle) & ('star_center' in dict_from_pickle)
+                    if ( ('numpart_total' in dict_from_pickle) and dict_from_pickle['numpart_total'][sink_type] ): 
+                        all_pickle_exist = all_pickle_exist & ('x_star' in dict_from_pickle) & ('v_star' in dict_from_pickle) & ('m_star' in dict_from_pickle)
+                    if plot_T_map or calculate_all_maps:
+                        all_pickle_exist = all_pickle_exist & ('Tmap_gas' in dict_from_pickle) & ('logTmap_gas' in dict_from_pickle)
+                    if plot_v_map or calculate_all_maps: all_pickle_exist = all_pickle_exist & ('v_field' in dict_from_pickle)
+                    if plot_B_map or calculate_all_maps: all_pickle_exist = all_pickle_exist & ('B_field' in dict_from_pickle)
+                    if plot_cool_map or calculate_all_maps: all_pickle_exist = all_pickle_exist & ('sigma_1D' in dict_from_pickle)
+                    if plot_energy_map or calculate_all_maps: all_pickle_exist = all_pickle_exist & ('energy_map_gas' in dict_from_pickle)
+                else:
+                    all_pickle_exist = False
+                dict_from_pickle = 0 #unloading it from memory
         if not all_pickle_exist:
+            print('Missing pickle files or incomplete data in them, the snapshots will need to be loaded...')
             if remake_only:
-                print(pickle_filename+" does not exist, returning...")
+                print("Returning...")
                 return
             print("Loading snapshot data from "+filenames[i])
             #We don't have the data, must read it from snapshot
@@ -233,7 +247,7 @@ def MakeImage(i):
             numpart_total=load_from_snapshot("NumPart_Total",0,datafolder,snapnum1)
             if not numpart_total[sink_type] and (center_on_star or (sink_ID>0)): return
             if numpart_total[sink_type]:
-                id1s, id2s = np.int_(load_from_snapshot("ParticleIDs",sink_type,datafolder,snapnum1)), np.int_(load_from_snapshot("ParticleIDs",sink_type,datafolder,snapnum2))                
+                id1s, id2s = np.int_(load_from_snapshot("ParticleIDs",sink_type,datafolder,snapnum1)), np.int_(load_from_snapshot("ParticleIDs",sink_type,datafolder,snapnum2)) 
                 unique, counts = np.unique(id2s, return_counts=True)
                 doubles = unique[counts>1]
                 id2s[np.in1d(id2s,doubles)]=-1
@@ -282,6 +296,7 @@ def MakeImage(i):
                     np.savetxt(sinkfilename,np.transpose(np.array([np.int64(ids_m),ms_m,dxs_m[:,0],dxs_m[:,1],dxs_m[:,2]])))
                     return
             if numpart_total[0]:
+                #We are reading the various gas properties in the current and the next snapshot 
                 id1, id2 = np.int_(load_from_snapshot("ParticleIDs",0,datafolder,snapnum1)), np.int_(load_from_snapshot("ParticleIDs",0,datafolder,snapnum2))
                 wind_idx1 = np.in1d(id1, wind_ids)
 #                print(np.sum(id1==wind_ids[0]), np.sum(id1==wind_ids[1]), id1.min(), id1.max())
@@ -292,7 +307,6 @@ def MakeImage(i):
                     id1[wind_idx1] = wind_particle_ids
 #                    print(np.sum(id1==wind_ids[0]), np.sum(id1==wind_ids[1]), id1.min(), id1.max())
 #                    print(len(np.unique(id1)), len(id1))
-                    
                 wind_idx2 = np.in1d(id2, wind_ids)
                 if np.any(wind_idx2):
                     progenitor_ids = np.int_(load_from_snapshot("ParticleIDGenerationNumber",0,datafolder,snapnum2))[wind_idx2]
@@ -301,12 +315,9 @@ def MakeImage(i):
                     id2[wind_idx2] = wind_particle_ids
 #                    print(np.sum(id2==wind_ids[0]), np.sum(id2==wind_ids[1]), id2.min(), id2.max())
 #                    print(len(np.unique(id2)), len(id2))
-
                 unique, counts = np.unique(id2, return_counts=True)
                 doubles = unique[counts>1]
-
                 id2[np.in1d(id2,doubles)]=-1
-
                 id1_order, id2_order = id1.argsort(), id2.argsort()
                 if abundance_map>-1:
                     abundance1 = (np.array(load_from_snapshot("Metallicity",0,datafolder,snapnum1))[:,abundance_map])[id1_order]
@@ -321,7 +332,9 @@ def MakeImage(i):
                 u1, u2 = np.array(load_from_snapshot("InternalEnergy",0,datafolder,snapnum1))[id1_order], np.array(load_from_snapshot("InternalEnergy",0,datafolder,snapnum2))[id2_order]
                 h1, h2 = length_unit*np.array(load_from_snapshot("SmoothingLength",0,datafolder,snapnum1))[id1_order], length_unit*np.array(load_from_snapshot("SmoothingLength",0,datafolder,snapnum2))[id2_order]
                 m1, m2 = mass_unit*np.array(load_from_snapshot("Masses",0,datafolder,snapnum1))[id1_order], mass_unit*np.array(load_from_snapshot("Masses",0,datafolder,snapnum2))[id2_order]
-                # take only the particles that are in both snaps
+                if plot_B_map or calculate_all_maps:
+                    B1, B2 = B_unit*np.array(load_from_snapshot("MagneticField",0,datafolder,snapnum1))[id1_order], B_unit*np.array(load_from_snapshot("MagneticField",0,datafolder,snapnum2))[id2_order]
+                # take only the cells that are in both snaps
                 common_ids = np.intersect1d(id1,id2)
                 if slice_height:
                     if not sink_ID:
@@ -337,28 +350,29 @@ def MakeImage(i):
                     ids_in_slice1=0; ids_in_slice2=0; dx=0 #unload
                 idx1 = np.in1d(np.sort(id1),common_ids)
                 idx2 = np.in1d(np.sort(id2),common_ids)
-                x1 = x1[idx1]; u1 = u1[idx1]; h1 = h1[idx1]*rescale_hsml; m1 = m1[idx1]; id1 = np.sort(id1)[idx1]; v1 = v1[idx1]; 
-                x2 = x2[idx2]; u2 = u2[idx2]; h2 = h2[idx2]*rescale_hsml; m2 = m2[idx2]; id2 = np.sort(id2)[idx2]; v2 = v2[idx2]; 
+                x1 = x1[idx1]; u1 = u1[idx1]; h1 = h1[idx1]*rescale_hsml; m1 = m1[idx1]; id1 = np.sort(id1)[idx1]; v1 = v1[idx1];
+                x2 = x2[idx2]; u2 = u2[idx2]; h2 = h2[idx2]*rescale_hsml; m2 = m2[idx2]; id2 = np.sort(id2)[idx2]; v2 = v2[idx2];
+                if plot_B_map or calculate_all_maps:
+                    B1 = B1[idx1]; B2 = B2[idx2];
                 m = m2 # mass to actually use in render
                 if abundance_map>-1:
                     abundance1 = abundance1[idx1]; abundance2 = abundance1[idx2]
                 if highlight_wind != 1:
                     m[id2 < 0] *= highlight_wind
-                
                 # unload stuff to save memory
                 idx1=0; idx2=0; id1=0; id2=0;
-
-                
             time = load_from_snapshot("Time",0,datafolder,snapnum1)
         for k in range(n_interp):
             if (snapnum1!=snapnum2): #this part is to avoid creating pickle files for interpolating frames for the last snapshot
                 k_in_filename = k
             else:
                 k_in_filename = 0
-            pickle_filename = pickle_filename_gen(snapnum1,k,n_interp,r,res,center,sink_ID)
+            pickle_filename = pickle_filename_gen(snapnum1,k_in_filename,n_interp,r,res,center,sink_ID)
             if outputfolder:
                 pickle_filename=outputfolder+'/'+pickle_filename
-            if not os.path.exists(pickle_filename):
+            if not all_pickle_exist: #we previously decided to redo these pickle files
+                dict_to_pickle = dict() #we will store the data we want to pickle in a dictionary
+                dict_to_pickle['time'] = time; dict_to_pickle['numpart_total'] = numpart_total;
                 if numpart_total[sink_type]:
                     x_star = float(k)/n_interp * x2s + (n_interp-float(k))/n_interp * x1s
                     v_star = float(k)/n_interp * v2s + (n_interp-float(k))/n_interp * v1s
@@ -369,8 +383,7 @@ def MakeImage(i):
                         x_star[jump_ind1] = (float(k)/n_interp * (x2s[jump_ind1]-boxsize) + (n_interp-float(k))/n_interp * x1s[jump_ind1])%boxsize 
                     if np.any(jump_ind2):
                         x_star[jump_ind2] = (float(k)/n_interp * x2s[jump_ind2] + (n_interp-float(k))/n_interp * (x1s[jump_ind2]-boxsize))%boxsize 
-                else:
-                    x_star = []; m_star = []; v_star = [];
+                    dict_to_pickle['x_star'] = x_star; dict_to_pickle['v_star'] = v_star; dict_to_pickle['m_star'] = m_star #store data to save
                 star_center = np.zeros(3)
                 star_v_center = np.zeros(3)
                 if sink_ID:
@@ -398,6 +411,7 @@ def MakeImage(i):
                         star_center[1] = yfit(snapnum1+float(k)/n_interp)
                         star_center[2] = zfit(snapnum1+float(k)/n_interp)
                         print("Smoothing changed centering from %g %g %g to %g %g %g"%(star_center_old[0],star_center_old[1],star_center_old[2],star_center[0],star_center[1],star_center[2]))
+                dict_to_pickle['star_center'] = star_center 
                 if numpart_total[0]:
                     x = float(k)/n_interp * x2 + (n_interp-float(k))/n_interp * x1
                     #correct for periodic box
@@ -408,82 +422,76 @@ def MakeImage(i):
                     if np.any(jump_ind2):
                         x[jump_ind2] = (float(k)/n_interp * x2[jump_ind2] + (n_interp-float(k))/n_interp * (x1[jump_ind2]-boxsize))%boxsize 
                     x -= star_center
-                    
                     v = float(k)/n_interp * v2 + (n_interp-float(k))/n_interp * v1
                     v -= star_v_center
+                    if plot_B_map or calculate_all_maps:
+                        B = float(k)/n_interp * B2 + (n_interp-float(k))/n_interp * B1
                     
-
                     logu = float(k)/n_interp * np.log10(u2) + (n_interp-float(k))/n_interp * np.log10(u1)
                     u = (10**logu)/1.01e4 #converting to K
 
                     h = float(k)/n_interp * h2 + (n_interp-float(k))/n_interp * h1
                     h = np.clip(h,L/res, 1e100)
                     
-                    
                     if abundance_map>-1:
                         abundance = float(k)/n_interp * abundance2 + (n_interp-float(k))/n_interp * abundance1
                         sigma_gas = GridSurfaceDensity_func(m*abundance, x, h, star_center*0, L, res=res).T
                     else:
                         sigma_gas = GridSurfaceDensity_func(m, x, h, star_center*0, L, res=res).T
-                    if plot_T_map:
+                    dict_to_pickle['sigma_gas'] = sigma_gas #store gas surface density
+                    if plot_T_map or calculate_all_maps:
                         #Tmap_gas = GridAverage(u, x, h,star_center*0, L, res=res).T #should be similar to mass weighted average if particle masses roughly constant, also converting to K
                         #logTmap_gas = GridAverage(np.log10(u), x, h,star_center*0, L, res=res).T #average of log T so that it is not completely dominated by the warm ISM
                         weight_map = GridSurfaceDensity(np.ones(len(u)), x, h,star_center*0, L, res=res) #sum of weights
                         Tmap_gas = (GridSurfaceDensity(u, x, h,star_center*0, L, res=res)/weight_map).T #should be similar to mass weighted average if particle masses roughly constant, also converting to K
+                        dict_to_pickle['Tmap_gas'] = Tmap_gas #store gas temperature
                         logTmap_gas = (GridSurfaceDensity(np.log10(u), x, h,star_center*0, L, res=res)/weight_map).T #average of log T so that it is not completely dominated by the warm ISM
-                    else:
-                        Tmap_gas = np.zeros((res,res))
-                        logTmap_gas = np.zeros((res,res))
-                    
-                    v_field = np.zeros( (res,res,2) )
-                    if plot_v_map:
-                        weight_map = GridSurfaceDensity(np.ones(len(v[:,0])), x, h,star_center*0, L, res=res) #sum of weights
-                        v_field[:,:,0] = (GridSurfaceDensity(v[:,0], x, h,star_center*0, L, res=res)/weight_map).T
-                        v_field[:,:,1] = (GridSurfaceDensity(v[:,1], x, h,star_center*0, L, res=res)/weight_map).T
-                    if plot_cool_map:
+                        dict_to_pickle['logTmap_gas'] = logTmap_gas #store gas temperature
+                    if plot_v_map or plot_B_map or calculate_all_maps:
+                        weight_map_cells = GridSurfaceDensity(np.ones(len(v[:,0])), x, h,star_center*0, L, res=res) #sum of weights, this will be a cell-number (i.e. mass) weighted average
+                        dict_to_pickle['weight_map_cells'] = weight_map_cells
+                    if plot_v_map or calculate_all_maps:
+                        v_field = np.zeros( (res,res,2) )
+                        v_field[:,:,0] = (GridSurfaceDensity(v[:,0], x, h,star_center*0, L, res=res)/weight_map_cells).T
+                        v_field[:,:,1] = (GridSurfaceDensity(v[:,1], x, h,star_center*0, L, res=res)/weight_map_cells).T
+                        dict_to_pickle['v_field'] = v_field #store gas velocity
+                    if plot_B_map or calculate_all_maps:
+                        B_field = np.zeros( (res,res,2) )
+                        B_field[:,:,0] = (GridSurfaceDensity(B[:,0], x, h,star_center*0, L, res=res)/weight_map_cells).T
+                        B_field[:,:,1] = (GridSurfaceDensity(B[:,1], x, h,star_center*0, L, res=res)/weight_map_cells).T
+                        dict_to_pickle['B_field'] = B_field #store magnetic field
+                    if plot_cool_map or calculate_all_maps:
                         sigma_1D = GridSurfaceDensity_func(m * v[:,2]**2, x, h,star_center*0, L, res=res).T/sigma_gas
                         v_avg = GridSurfaceDensity_func(m * v[:,2], x, h,star_center*0, L, res=res).T/sigma_gas
                         sigma_1D = np.sqrt(sigma_1D - v_avg**2) / 1e3
-                    else:
-                        sigma_1D = np.zeros((res,res))
-                        
-                    if plot_energy_map:
+                        dict_to_pickle['sigma_1D'] = sigma_1D #store gas velocity dispersion
+                    if plot_energy_map or calculate_all_maps:
                         kin_energy_weighted = m*(1.0+np.sum(v**2,axis=1)/(energy_v_scale**2))
                         energy_map_gas = GridSurfaceDensity(kin_energy_weighted, x, h, star_center*0, L, res=res).T
-                    else:
-                        energy_map_gas = np.zeros((res,res))
-                else:
-                    sigma_gas = np.zeros((res,res))
-                    Tmap_gas = np.zeros((res,res))
-                    logTmap_gas = np.zeros((res,res))
-                    energy_map_gas = np.zeros((res,res))
+                        dict_to_pickle['energy_map_gas'] = energy_map_gas #store gas kinetic energy map
                 #Save data
                 if not no_pickle:
                     print("Saving "+pickle_filename)
                     outfile = open(pickle_filename, 'wb') 
-                    pickle.dump([x_star,m_star,sigma_gas,Tmap_gas,logTmap_gas,time,numpart_total, star_center,v_field,energy_map_gas, sigma_1D], outfile)
+                    pickle.dump(dict_to_pickle, outfile)
                     outfile.close()
             else:
                 #Load data from pickle file
                 print("Loading "+pickle_filename)
                 infile = open(pickle_filename, 'rb') 
-                temp = pickle.load(infile)
-                infile.close()
-                x_star = temp[0]; m_star = temp[1]; sigma_gas = temp[2]; Tmap_gas = temp[3]; logTmap_gas = temp[4]; time = temp[5]; numpart_total = temp[6];
-                star_center = temp[7]
-                if (len(temp)>=9):
-                    v_field = temp[8]
-                else:
-                    v_field = np.zeros( (res,res,2) )
-                if (len(temp)>=10):
-                    energy_map_gas = temp[9]
-                else:
-                    energy_map_gas = np.zeros((res,res))
-                if len(temp)>= 11:
-                    sigma_1D = temp[10]
-                else:
-                    sigma_1D = np.zeros((res,res))
-                temp = 0; #unload
+                dict_from_pickle = pickle.load(infile)
+                #Assign data to variables
+                time = dict_from_pickle['time']; numpart_total = dict_from_pickle['numpart_total']; 
+                sigma_gas = dict_from_pickle['sigma_gas']; star_center = dict_from_pickle['star_center'];
+                if numpart_total[sink_type]:
+                    x_star = dict_from_pickle['x_star']; v_star = dict_from_pickle['v_star']; m_star = dict_from_pickle['m_star']
+                if plot_T_map: 
+                    Tmap_gas = dict_from_pickle['Tmap_gas']
+                    logTmap_gas = dict_from_pickle['logTmap_gas']
+                if plot_v_map: v_field = dict_from_pickle['v_field']
+                if plot_B_map: B_field = dict_from_pickle['B_field']
+                if plot_cool_map: sigma_1D = dict_from_pickle['sigma_1D']
+                if plot_energy_map: energy_map_gas = dict_from_pickle['energy_map_gas']
             #Adjust limits if not set
             if ((limits[0]==0) or (limits[1]==0)):
                 limits[1]=2.0*np.percentile(sigma_gas,99.9)
@@ -644,8 +652,35 @@ def MakeImage(i):
                     d.flush()
                 F.save(fname)
                 F.close()
+                #Add magnetic field
+                if plot_B_map: 
+                    from licplot import lic_internal #only import line integral-convolution module if used, can be installed as pip install licplot
+                    xlim = [boxsize/2.0+center[0]+star_center[0]-r,boxsize/2.0+center[0]+star_center[0]+r]
+                    ylim = [boxsize/2.0+center[1]+star_center[1]-r,boxsize/2.0+center[1]+star_center[1]+r]
+                    data = plt.imread(fname)
+                    fig, ax = plt.subplots()
+                    ax.imshow( data, extent=(xlim[0],xlim[1],ylim[0],ylim[1]) )
+                    #Correction to align the vectors and the background
+                    Bx_field = np.fliplr(-B_field[:,:,0]); By_field = np.fliplr(B_field[:,:,1])
+                    texture = np.random.rand(res, res).astype(np.float32)
+                    # create a kernel
+                    kernel_length = int(res/1024)*32-1; max_alpha=0.7;
+                    kernel = np.sin(np.arange(kernel_length) * np.pi / kernel_length).astype(np.float32)
+                    # compute the line-integral-convolution
+                    image = lic_internal.line_integral_convolution(np.float32(Bx_field), np.float32(By_field), texture, kernel)
+                    image_color = matplotlib.colors.Normalize()(image)
+                    image_color = plt.cm.Greys(image_color)
+                    #print(np.ptp(image),np.min(image),np.max(image))
+                    #print(np.mean((image-np.min(image))/np.ptp(image)), np.median((image-np.min(image))/np.ptp(image)), np.std((image-np.min(image))/np.ptp(image)))
+                    image_color[..., -1] = max_alpha*(image-np.min(image))/np.ptp(image)
+                    plt.imshow(image_color,extent=(xlim[0],xlim[1],ylim[0],ylim[1]))
+                    plt.axis('off')
+                    fig.set_size_inches(8, 8)
+                    fig.savefig(fname,dpi=int(gridres/8))
+                    plt.close(fig)
                 #Add velocity field
-                if plot_v_map:
+                if plot_v_map: 
+                    if not vector_quiver_map: v_res=res # this removes the user setting, but it should not really matter for field lines
                     if v_res>res:
                         print("v_res too high, resetting to %d"%(res))
                         v_res=res
@@ -654,35 +689,53 @@ def MakeImage(i):
                     data = plt.imread(fname)
                     fig, ax = plt.subplots()
                     ax.imshow( data, extent=(xlim[0],xlim[1],ylim[0],ylim[1]) )
-                    if not ('vx_field' in locals()):
-                        #quiver_scale=v_res/4*np.mean(np.linalg.norm(v_field,axis=2))
-                        quiver_scale=v_res/4*velocity_scale
-                        x = np.linspace(xlim[0],xlim[1],num=v_res)
-                        y = np.linspace(ylim[0],ylim[1],num=v_res)
-                        #Reduce v_field resolution
-                        vx_smoothed = gaussian_filter(v_field[:,:,0], sigma=res/v_res)
-                        vy_smoothed = gaussian_filter(v_field[:,:,1], sigma=res/v_res)
-                        #Interolate v_field
-                        vx_interpolfunc = interp2d(np.arange(res)/(res-1), np.arange(res)/(res-1), vx_smoothed )
-                        vy_interpolfunc = interp2d(np.arange(res)/(res-1), np.arange(res)/(res-1), vy_smoothed )
-                        vx_field = vx_interpolfunc( np.arange(v_res)/(v_res-1), np.arange(v_res)/(v_res-1) )
-                        vy_field = vy_interpolfunc( np.arange(v_res)/(v_res-1), np.arange(v_res)/(v_res-1) )
-                        #Rescale v_field
-                        v_min_scale = 0.3 * (8/v_res) #prefactor times the space between velocity grid points
-                        vx_field = vx_field/quiver_scale; vy_field = vy_field/quiver_scale
-                        #Correct for too small arrows
-                        vlength = np.sqrt(vx_field**2 + vy_field**2); 
-                        vlength_corrections = np.clip(v_min_scale/vlength,1.0,None)
-                        vx_field = vx_field*vlength_corrections; vy_field = vy_field*vlength_corrections
+                    if not ('vx_field' in locals()): #to avoid redoing it for the different plot types
+                        if v_res<res:
+                            x = np.linspace(xlim[0],xlim[1],num=v_res)
+                            y = np.linspace(ylim[0],ylim[1],num=v_res)
+                            #Reduce v_field resolution
+                            vx_smoothed = gaussian_filter(v_field[:,:,0], sigma=res/v_res)
+                            vy_smoothed = gaussian_filter(v_field[:,:,1], sigma=res/v_res)
+                            #Interolate v_field
+                            vx_interpolfunc = interp2d(np.arange(res)/(res-1), np.arange(res)/(res-1), vx_smoothed )
+                            vy_interpolfunc = interp2d(np.arange(res)/(res-1), np.arange(res)/(res-1), vy_smoothed )
+                            vx_field = vx_interpolfunc( np.arange(v_res)/(v_res-1), np.arange(v_res)/(v_res-1) )
+                            vy_field = vy_interpolfunc( np.arange(v_res)/(v_res-1), np.arange(v_res)/(v_res-1) )
+                        else:
+                            vx_field = v_field[:,:,0]; vy_field = v_field[:,:,1]
+                        if vector_quiver_map:
+                            #quiver_scale=v_res/4*np.mean(np.linalg.norm(v_field,axis=2))
+                            quiver_scale=v_res/4*velocity_scale
+                            #Rescale v_field
+                            v_min_scale = 0.3 * (8/v_res) #prefactor times the space between velocity grid points
+                            vx_field = vx_field/quiver_scale; vy_field = vy_field/quiver_scale
+                            #Correct for too small arrows
+                            vlength = np.sqrt(vx_field**2 + vy_field**2); 
+                            vlength_corrections = np.clip(v_min_scale/vlength,1.0,None)
+                            vx_field = vx_field*vlength_corrections; vy_field = vy_field*vlength_corrections
                         #Correction to align the arrows and the background
                         vx_field = np.fliplr(-vx_field); vy_field = np.fliplr(vy_field)
-                    ax.quiver(x,y,vx_field,vy_field,color=arrow_color,scale=1.0,scale_units='inches',units='xy',angles='xy')
-                    ax.axis('off')
+                    if vector_quiver_map:
+                        ax.quiver(x,y,vx_field,vy_field,color=arrow_color,scale=1.0,scale_units='inches',units='xy',angles='xy')
+                    else: #we are doing field lines
+                        from licplot import lic_internal #only import line integral-convolution module if used, can be installed as pip install licplot
+                        texture = np.random.rand(v_res, v_res).astype(np.float32)
+                        # create a kernel
+                        kernel_length = int(res/1024)*32-1; max_alpha=0.7
+                        kernel = np.sin(np.arange(kernel_length) * np.pi / kernel_length).astype(np.float32)
+                        # compute the line-integral-convolution
+                        image = lic_internal.line_integral_convolution(np.float32(vx_field), np.float32(vy_field), texture, kernel)
+                        image_color = matplotlib.colors.Normalize(np.min(image),np.max(image),clip=True)(image)
+                        #image = matplotlib.colors.Normalize(0,1,clip=True)(image)
+                        image_color = plt.cm.Greys(image_color)
+                        image_color[..., -1] = max_alpha*(image-np.min(image))/np.ptp(image)
+                        plt.imshow(image_color,extent=(xlim[0],xlim[1],ylim[0],ylim[1]))
+                    plt.axis('off')
                     fig.set_size_inches(8, 8)
                     fig.savefig(fname,dpi=int(gridres/8))
                     plt.close(fig)
-                    
-                if draw_axes:
+
+                if draw_axes: #add axes and labels to plot
                     xlim = [boxsize/2.0+center[0]+star_center[0]-r,boxsize/2.0+center[0]+star_center[0]+r]
                     ylim = [boxsize/2.0+center[1]+star_center[1]-r,boxsize/2.0+center[1]+star_center[1]+r]
                     data = plt.imread(fname)
@@ -772,7 +825,8 @@ def MakeMovie():
 def make_input(files=["snapshot_000.hdf5"], rmax=False, full_box=False, center=[0,0,0],limits=[0,0],Tlimits=[0,0],energy_limits=[0,0],\
                 interp_fac=1, np=1,res=512,v_res=32, keep_only_movie=False, fps=20, movie_name="sink_movie",dir='z',abundance_map=-1,\
                 center_on_star=0, N_high=1, Tcmap="inferno", cmap="viridis",ecmap="viridis", no_movie=True,make_movie=False, make_movie_only=False,outputfolder="output",cool_cmap='same',cmap_fresco='same',plot_cool_map_fresco=False,fresco_param=5e-4,fresco_mass_rescale=[0.0,0.0],\
-                plot_T_map=True,plot_v_map=False,plot_energy_map=False,plot_fresco_stars=False,sink_scale=0.1, sink_relscale=0.0025, sink_type=5, galunits=False,name_addition="",center_on_ID=0,no_pickle=False, no_timestamp=False,slice_height=0,velocity_scale=1000,arrow_color='white',energy_v_scale=1000,\
+                plot_T_map=True,plot_v_map=False,plot_B_map=False,plot_energy_map=False,calculate_all_maps=False,plot_fresco_stars=False,sink_scale=0.1, sink_relscale=0.0025, sink_type=5, galunits=False,name_addition="",center_on_ID=0,no_pickle=False, no_timestamp=False,slice_height=0,velocity_scale=1000,arrow_color='white',\
+                vector_quiver_map=False, energy_v_scale=1000,\
                 no_size_scale=False, center_on_densest=False, draw_axes=False, remake_only=False, rescale_hsml=1.0, smooth_center=False, highlight_wind=1.0,\
                 disable_multigrid=False):
     if (not isinstance(files, list)):
@@ -792,6 +846,7 @@ def make_input(files=["snapshot_000.hdf5"], rmax=False, full_box=False, center=[
         "--v_res": res,
         "--velocity_scale": velocity_scale,
         "--energy_v_scale": energy_v_scale,
+        "--vector_quiver_map": vector_quiver_map,
         "--arrow_color": arrow_color,
         "--keep_only_movie": keep_only_movie,
         "--slice_height": slice_height,
@@ -819,9 +874,11 @@ def make_input(files=["snapshot_000.hdf5"], rmax=False, full_box=False, center=[
         "--plot_T_map": plot_T_map,
         "--plot_cool_map": plot_cool_map,
         "--plot_energy_map": plot_energy_map,
+        "--calculate_all_maps": calculate_all_maps,
         "--plot_fresco_stars": plot_fresco_stars,
         "--plot_cool_map_fresco": plot_cool_map_fresco,
         "--plot_v_map": plot_v_map,
+        "--plot_B_map": plot_B_map,
         "--fresco_mass_rescale": fresco_mass_rescale,
         "--fresco_param": fresco_param,
         "--name_addition": name_addition,
@@ -884,7 +941,7 @@ def main(input):
     global abundance_map; abundance_map = int(arguments["--abundance_map"])
     global abundance_text
     if (abundance_map!=-1.0):
-        abundance_text='_%d'%(abundance_map)
+        abundance_text='metal_%d'%(abundance_map)
     else:
         abundance_text=''
     global fresco_param; fresco_param = float(arguments["--fresco_param"])
@@ -905,10 +962,14 @@ def main(input):
     global plot_energy_map; plot_energy_map = arguments["--plot_energy_map"]
     global plot_fresco_stars; plot_fresco_stars = arguments["--plot_fresco_stars"]
     global plot_v_map; plot_v_map = arguments["--plot_v_map"]
+    global vector_quiver_map; vector_quiver_map = arguments["--vector_quiver_map"]
+    global plot_B_map; plot_B_map = arguments["--plot_B_map"]
+    if (plot_B_map and plot_v_map): vector_quiver_map=True #if plot_B_map and plot_v_map are both set then we only do quiver plots
     global plot_cool_map; plot_cool_map = arguments["--plot_cool_map"]
     global plot_cool_map_fresco; plot_cool_map_fresco = arguments["--plot_cool_map_fresco"]
     if plot_cool_map_fresco:
         plot_cool_map = True
+    global calculate_all_maps; calculate_all_maps = arguments["--calculate_all_maps"]
     global remake_only; remake_only = arguments["--remake_only"]
     global no_timestamp; no_timestamp = arguments["--no_timestamp"]
     global draw_axes; draw_axes = arguments["--draw_axes"]
@@ -938,6 +999,7 @@ def main(input):
     global L; L = r*2
     global length_unit; length_unit = (1e3 if galunits else 1.) #in pc
     global velocity_unit; velocity_unit = (1e3 if galunits else 1.) #in m/s
+    global B_unit; B_unit = (1e-4 if galunits else 1.) #in Tesla
     global arrow_color; arrow_color = arguments["--arrow_color"]
     global mass_unit; mass_unit = (1e10 if galunits else 1.) #in Msun
     global pc_to_AU; pc_to_AU = 206265.0
@@ -957,6 +1019,8 @@ def main(input):
     global slice_text; slice_text=''
     if slice_height:
         slice_text='_slice%g'%(slice_height)
+        
+               
     
     if outputfolder:
         if not os.path.exists(outputfolder):
