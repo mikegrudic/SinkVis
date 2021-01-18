@@ -71,7 +71,9 @@ from Meshoid import GridSurfaceDensityMultigrid,GridSurfaceDensity, GridAverage
 import Meshoid
 from scipy.spatial import cKDTree
 from scipy.interpolate import interp2d
+from scipy.ndimage import convolve
 from scipy.ndimage import gaussian_filter
+from skimage.transform import rescale as rescale_image
 import h5py
 import matplotlib
 matplotlib.use('Agg')
@@ -185,6 +187,47 @@ def Star_Edge_Color(cmap):
     else:
         return 'white'
 
+def get_lic(vx,vy,nkern=31):
+    #Generate field lines for vector field (vx,vy) using line integral-convolution, based on visualization script for FIRE from Philip Hopkins
+    from licplot import lic_internal #only import line integral-convolution module if used, can be installed as pip install licplot
+    
+    texture = np.random.rand(vx.shape[0],vx.shape[1]); 
+    x = np.arange(nkern) / nkern;
+    kernel = np.sin(np.pi * x) * np.pi/(2.*nkern); 
+    image_one = lic_internal.line_integral_convolution(vx.astype(np.float32),vy.astype(np.float32), texture.astype(np.float32), kernel.astype(np.float32))
+    #image = image_one
+    
+    # enhance contrast
+    #image_norm = (image-np.min(image))/np.ptp(image)
+    #print(np.mean(image_norm), np.median(image_norm), np.std(image_norm), np.percentile(image_norm,10),np.percentile(image_norm,25),np.percentile(image_norm,50),np.percentile(image_norm,75),np.percentile(image_norm,90))
+    vmin=np.mean(image_one)-np.std(image_one); vmax=np.mean(image_one)+np.std(image_one);
+    im_trim=(image_one-vmin)/(vmax-vmin); 
+    im_trim[(im_trim>=1)]=1; im_trim[(im_trim<=0)]=0; im_trim[(np.isnan(im_trim))]=0;
+    #image = im_trim
+    
+    # sharpen image
+    alpha=0.5; laplacian = (4/(alpha+1)) * np.array([ [alpha/4, (1-alpha)/4, alpha/4], [(1-alpha)/4, -1, (1-alpha)/4], [alpha/4, (1-alpha)/4, alpha/4] ])
+    image_sharpener = convolve(im_trim, laplacian, mode='nearest')
+    image_sharp = im_trim - image_sharpener
+    image_sharp[(image_sharp<0)]=0; image_sharp[(image_sharp>1)]=1; 
+    #image = image_sharp
+    
+    # re-process with a new round of LIC
+    nkern = np.round(nkern/8.).astype('int')
+    if(nkern<4): nkern=4;
+    x = np.arange(nkern) / nkern;
+    kernel = np.sin(np.pi * x) * np.pi/(2.*nkern); 
+    image = lic_internal.line_integral_convolution(vx.astype(np.float32),vy.astype(np.float32), image_sharp.astype(np.float32), kernel.astype(np.float32))
+    
+    return image
+
+def get_lic_image(vx,vy,max_alpha=0.7):
+    kernel_length = int(vx.shape[0]/1024)*32-1;
+    image = get_lic(vx, vy,nkern=kernel_length) # get LIC image
+    image_color = matplotlib.colors.Normalize()(image)
+    image_color = plt.cm.Greys(image_color)
+    image_color[..., -1] = max_alpha*(image-np.min(image))/np.ptp(image) #set transparency
+    return image_color
 
 def MakeImage(i):
     global center_on_ID
@@ -606,7 +649,98 @@ def MakeImage(i):
                 flist.append(coolfilename)
             for fname in flist:
                 gridres=res
-                #Adding velocity field  here for some reason messes up the timestamp and the scale
+                
+                #Add magnetic field
+                if plot_B_map: 
+                    #from licplot import lic_internal #only import line integral-convolution module if used, can be installed as pip install licplot
+                    xlim = [boxsize/2.0+center[0]+star_center[0]-r,boxsize/2.0+center[0]+star_center[0]+r]
+                    ylim = [boxsize/2.0+center[1]+star_center[1]-r,boxsize/2.0+center[1]+star_center[1]+r]
+                    data = plt.imread(fname)
+                    fig, ax = plt.subplots(frameon=False)
+                    ax.imshow( data, extent=(xlim[0],xlim[1],ylim[0],ylim[1]) )
+                    #Correction to align the vectors and the background
+                    Bx_field = np.fliplr(-B_field[:,:,0]); By_field = np.fliplr(B_field[:,:,1])
+                    # ## compute the line-integral-convolution and create colored image with appropriate opacity channel
+                    image_color = get_lic_image(Bx_field,By_field)
+                    plt.imshow(image_color,extent=(xlim[0],xlim[1],ylim[0],ylim[1]))
+                    plt.axis('off'); fig.set_size_inches(8, 8)
+                    #Stuff to ensure that the image size remains the same
+                    fig.subplots_adjust(bottom = 0); fig.subplots_adjust(top = 1); fig.subplots_adjust(right = 1); fig.subplots_adjust(left = 0)
+                    fig.savefig(fname,dpi=int(gridres/8))
+                    plt.close(fig)
+                
+                #Add velocity field
+                if plot_v_map: 
+                    if not vector_quiver_map: v_res=res # this removes the user setting, but it should not really matter for field lines
+                    if v_res>res:
+                        print("v_res too high, resetting to %d"%(res))
+                        v_res=res
+                    xlim = [boxsize/2.0+center[0]+star_center[0]-r,boxsize/2.0+center[0]+star_center[0]+r]
+                    ylim = [boxsize/2.0+center[1]+star_center[1]-r,boxsize/2.0+center[1]+star_center[1]+r]
+                    data = plt.imread(fname)
+                    fig, ax = plt.subplots(frameon=False)
+                    ax.imshow( data, extent=(xlim[0],xlim[1],ylim[0],ylim[1]) )
+                    if not ('vx_field' in locals()): #to avoid redoing it for the different plot types
+                        if v_res<res:
+                            x = np.linspace(xlim[0],xlim[1],num=v_res)
+                            y = np.linspace(ylim[0],ylim[1],num=v_res)
+                            #Reduce v_field resolution
+                            vx_smoothed = gaussian_filter(v_field[:,:,0], sigma=res/v_res)
+                            vy_smoothed = gaussian_filter(v_field[:,:,1], sigma=res/v_res)
+                            #Interpolate v_field
+                            vx_interpolfunc = interp2d(np.arange(res)/(res-1), np.arange(res)/(res-1), vx_smoothed )
+                            vy_interpolfunc = interp2d(np.arange(res)/(res-1), np.arange(res)/(res-1), vy_smoothed )
+                            vx_field = vx_interpolfunc( np.arange(v_res)/(v_res-1), np.arange(v_res)/(v_res-1) )
+                            vy_field = vy_interpolfunc( np.arange(v_res)/(v_res-1), np.arange(v_res)/(v_res-1) )
+                        else:
+                            vx_field = v_field[:,:,0]; vy_field = v_field[:,:,1]
+                        if vector_quiver_map:
+                            #quiver_scale=v_res/4*np.mean(np.linalg.norm(v_field,axis=2))
+                            quiver_scale=v_res/4*velocity_scale
+                            #Rescale v_field
+                            v_min_scale = 0.3 * (8/v_res) #prefactor times the space between velocity grid points
+                            vx_field = vx_field/quiver_scale; vy_field = vy_field/quiver_scale
+                            #Correct for too small arrows
+                            vlength = np.sqrt(vx_field**2 + vy_field**2); 
+                            vlength_corrections = np.clip(v_min_scale/vlength,1.0,None)
+                            vx_field = vx_field*vlength_corrections; vy_field = vy_field*vlength_corrections
+                        #Correction to align the arrows and the background
+                        vx_field = np.fliplr(-vx_field); vy_field = np.fliplr(vy_field)
+                    if vector_quiver_map:
+                        ax.quiver(x,y,vx_field,vy_field,color=arrow_color,scale=1.0,scale_units='inches',units='xy',angles='xy')
+                    else: #we are doing field lines
+                        # ## compute the line-integral-convolution and create colored image with appropriate opacity channel
+                        image_color = get_lic_image(vx_field,vy_field)
+                        plt.imshow(image_color,extent=(xlim[0],xlim[1],ylim[0],ylim[1]))
+                    plt.axis('off'); fig.set_size_inches(8, 8)
+                    #Stuff to ensure that the image size remains the same
+                    fig.subplots_adjust(bottom = 0); fig.subplots_adjust(top = 1); fig.subplots_adjust(right = 1); fig.subplots_adjust(left = 0)
+                    fig.savefig(fname,dpi=int(gridres/8))
+                    plt.close(fig)
+                    
+                #Add stars
+                F = Image.open(fname)
+                gridres = F.size[0]
+                draw = ImageDraw.Draw(F)
+                if numpart_total[sink_type] and (not ('SurfaceDensity_fresco' in fname)) and (not (plot_cool_map_fresco and ('cool_' in fname)) ):
+                    d = aggdraw.Draw(F)
+                    pen = aggdraw.Pen(Star_Edge_Color(cmap),1) #gridres/800
+                    for j in np.arange(len(x_star))[m_star>0]:
+                        X = x_star[j] - star_center
+                        ms = m_star[j]
+                        star_size = gridres*sink_relscale * (np.log10(ms/sink_scale) + 1)
+                        star_size = max(1,star_size)
+                        p = aggdraw.Brush(StarColor(ms,cmap))
+                        X -= boxsize/2 + center
+                        norm_coords = (X[:2]+r)/(2*r)*gridres
+                        #Pillow puts the origin in th top left corner, so we need to flip the y axis
+                        norm_coords[1] = gridres - norm_coords[1]
+                        coords = np.concatenate([norm_coords-star_size, norm_coords+star_size])
+                        d.ellipse(coords, pen, p)#, fill=(155, 176, 255))
+                    d.flush()
+                F.save(fname)
+                F.close()
+                    
                 #Add labels and scale
                 F = Image.open(fname)
                 gridres = F.size[0]
@@ -635,106 +769,8 @@ def MakeImage(i):
                     else:
                         time_text="%3.2gyr"%(time*979*1e6)
                     draw.text((gridres/16, gridres/24), time_text, font=font)
-                if numpart_total[sink_type] and (not ('SurfaceDensity_fresco' in fname)) and (not (plot_cool_map_fresco and ('cool_' in fname)) ):
-                    d = aggdraw.Draw(F)
-                    pen = aggdraw.Pen(Star_Edge_Color(cmap),1) #gridres/800
-                    for j in np.arange(len(x_star))[m_star>0]:
-                        X = x_star[j] - star_center
-                        ms = m_star[j]
-                        star_size = gridres*sink_relscale * (np.log10(ms/sink_scale) + 1)
-                        star_size = max(1,star_size)
-                        p = aggdraw.Brush(StarColor(ms,cmap))
-                        X -= boxsize/2 + center
-                        norm_coords = (X[:2]+r)/(2*r)*gridres
-                        #Pillow puts the origin in th top left corner, so we need to flip the y axis
-                        norm_coords[1] = gridres - norm_coords[1]
-                        coords = np.concatenate([norm_coords-star_size, norm_coords+star_size])
-                        d.ellipse(coords, pen, p)#, fill=(155, 176, 255))
-                    d.flush()
                 F.save(fname)
                 F.close()
-                #Add magnetic field
-                if plot_B_map: 
-                    from licplot import lic_internal #only import line integral-convolution module if used, can be installed as pip install licplot
-                    xlim = [boxsize/2.0+center[0]+star_center[0]-r,boxsize/2.0+center[0]+star_center[0]+r]
-                    ylim = [boxsize/2.0+center[1]+star_center[1]-r,boxsize/2.0+center[1]+star_center[1]+r]
-                    data = plt.imread(fname)
-                    fig, ax = plt.subplots()
-                    ax.imshow( data, extent=(xlim[0],xlim[1],ylim[0],ylim[1]) )
-                    #Correction to align the vectors and the background
-                    Bx_field = np.fliplr(-B_field[:,:,0]); By_field = np.fliplr(B_field[:,:,1])
-                    texture = np.random.rand(res, res).astype(np.float32)
-                    # create a kernel
-                    kernel_length = int(res/1024)*32-1; max_alpha=0.7;
-                    kernel = np.sin(np.arange(kernel_length) * np.pi / kernel_length).astype(np.float32)
-                    # compute the line-integral-convolution
-                    image = lic_internal.line_integral_convolution(np.float32(Bx_field), np.float32(By_field), texture, kernel)
-                    image_color = matplotlib.colors.Normalize()(image)
-                    image_color = plt.cm.Greys(image_color)
-                    #print(np.ptp(image),np.min(image),np.max(image))
-                    #print(np.mean((image-np.min(image))/np.ptp(image)), np.median((image-np.min(image))/np.ptp(image)), np.std((image-np.min(image))/np.ptp(image)))
-                    image_color[..., -1] = max_alpha*(image-np.min(image))/np.ptp(image)
-                    plt.imshow(image_color,extent=(xlim[0],xlim[1],ylim[0],ylim[1]))
-                    plt.axis('off')
-                    fig.set_size_inches(8, 8)
-                    fig.savefig(fname,dpi=int(gridres/8))
-                    plt.close(fig)
-                #Add velocity field
-                if plot_v_map: 
-                    if not vector_quiver_map: v_res=res # this removes the user setting, but it should not really matter for field lines
-                    if v_res>res:
-                        print("v_res too high, resetting to %d"%(res))
-                        v_res=res
-                    xlim = [boxsize/2.0+center[0]+star_center[0]-r,boxsize/2.0+center[0]+star_center[0]+r]
-                    ylim = [boxsize/2.0+center[1]+star_center[1]-r,boxsize/2.0+center[1]+star_center[1]+r]
-                    data = plt.imread(fname)
-                    fig, ax = plt.subplots()
-                    ax.imshow( data, extent=(xlim[0],xlim[1],ylim[0],ylim[1]) )
-                    if not ('vx_field' in locals()): #to avoid redoing it for the different plot types
-                        if v_res<res:
-                            x = np.linspace(xlim[0],xlim[1],num=v_res)
-                            y = np.linspace(ylim[0],ylim[1],num=v_res)
-                            #Reduce v_field resolution
-                            vx_smoothed = gaussian_filter(v_field[:,:,0], sigma=res/v_res)
-                            vy_smoothed = gaussian_filter(v_field[:,:,1], sigma=res/v_res)
-                            #Interolate v_field
-                            vx_interpolfunc = interp2d(np.arange(res)/(res-1), np.arange(res)/(res-1), vx_smoothed )
-                            vy_interpolfunc = interp2d(np.arange(res)/(res-1), np.arange(res)/(res-1), vy_smoothed )
-                            vx_field = vx_interpolfunc( np.arange(v_res)/(v_res-1), np.arange(v_res)/(v_res-1) )
-                            vy_field = vy_interpolfunc( np.arange(v_res)/(v_res-1), np.arange(v_res)/(v_res-1) )
-                        else:
-                            vx_field = v_field[:,:,0]; vy_field = v_field[:,:,1]
-                        if vector_quiver_map:
-                            #quiver_scale=v_res/4*np.mean(np.linalg.norm(v_field,axis=2))
-                            quiver_scale=v_res/4*velocity_scale
-                            #Rescale v_field
-                            v_min_scale = 0.3 * (8/v_res) #prefactor times the space between velocity grid points
-                            vx_field = vx_field/quiver_scale; vy_field = vy_field/quiver_scale
-                            #Correct for too small arrows
-                            vlength = np.sqrt(vx_field**2 + vy_field**2); 
-                            vlength_corrections = np.clip(v_min_scale/vlength,1.0,None)
-                            vx_field = vx_field*vlength_corrections; vy_field = vy_field*vlength_corrections
-                        #Correction to align the arrows and the background
-                        vx_field = np.fliplr(-vx_field); vy_field = np.fliplr(vy_field)
-                    if vector_quiver_map:
-                        ax.quiver(x,y,vx_field,vy_field,color=arrow_color,scale=1.0,scale_units='inches',units='xy',angles='xy')
-                    else: #we are doing field lines
-                        from licplot import lic_internal #only import line integral-convolution module if used, can be installed as pip install licplot
-                        texture = np.random.rand(v_res, v_res).astype(np.float32)
-                        # create a kernel
-                        kernel_length = int(res/1024)*32-1; max_alpha=0.7
-                        kernel = np.sin(np.arange(kernel_length) * np.pi / kernel_length).astype(np.float32)
-                        # compute the line-integral-convolution
-                        image = lic_internal.line_integral_convolution(np.float32(vx_field), np.float32(vy_field), texture, kernel)
-                        image_color = matplotlib.colors.Normalize(np.min(image),np.max(image),clip=True)(image)
-                        #image = matplotlib.colors.Normalize(0,1,clip=True)(image)
-                        image_color = plt.cm.Greys(image_color)
-                        image_color[..., -1] = max_alpha*(image-np.min(image))/np.ptp(image)
-                        plt.imshow(image_color,extent=(xlim[0],xlim[1],ylim[0],ylim[1]))
-                    plt.axis('off')
-                    fig.set_size_inches(8, 8)
-                    fig.savefig(fname,dpi=int(gridres/8))
-                    plt.close(fig)
 
                 if draw_axes: #add axes and labels to plot
                     xlim = [boxsize/2.0+center[0]+star_center[0]-r,boxsize/2.0+center[0]+star_center[0]+r]
