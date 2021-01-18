@@ -45,6 +45,7 @@ Options:
     --plot_v_map               Overplots velocity map on plots
     --plot_energy_map          Plots kinetic energy map
     --plot_cool_map            Plots cool map that looks cool
+    --sharpen_LIC_map          If enabled SinkVis will try to sharpen the field lines in line-integral convolution maps (i.e. when using plot_B_map). May produce artifacts in the image.
     --calculate_all_maps       Calculates all data for the pickle files, even if they won't get plotted
     --plot_fresco_stars        Plots surface density map with Hubble-like PSFs for the stars 
     --plot_cool_map_fresco     Plots cool map that uses Hubble-like PSFs for the stars
@@ -187,7 +188,7 @@ def Star_Edge_Color(cmap):
     else:
         return 'white'
 
-def get_lic(vx,vy,nkern=31):
+def get_lic(vx,vy,nkern=31, trim=True, sharpen=False,):
     #Generate field lines for vector field (vx,vy) using line integral-convolution, based on visualization script for FIRE from Philip Hopkins
     from licplot import lic_internal #only import line integral-convolution module if used, can be installed as pip install licplot
     
@@ -195,35 +196,33 @@ def get_lic(vx,vy,nkern=31):
     x = np.arange(nkern) / nkern;
     kernel = np.sin(np.pi * x) * np.pi/(2.*nkern); 
     image_one = lic_internal.line_integral_convolution(vx.astype(np.float32),vy.astype(np.float32), texture.astype(np.float32), kernel.astype(np.float32))
-    #image = image_one
-    
-    # enhance contrast
-    #image_norm = (image-np.min(image))/np.ptp(image)
-    #print(np.mean(image_norm), np.median(image_norm), np.std(image_norm), np.percentile(image_norm,10),np.percentile(image_norm,25),np.percentile(image_norm,50),np.percentile(image_norm,75),np.percentile(image_norm,90))
-    vmin=np.mean(image_one)-np.std(image_one); vmax=np.mean(image_one)+np.std(image_one);
-    im_trim=(image_one-vmin)/(vmax-vmin); 
-    im_trim[(im_trim>=1)]=1; im_trim[(im_trim<=0)]=0; im_trim[(np.isnan(im_trim))]=0;
-    #image = im_trim
-    
-    # sharpen image
-    alpha=0.5; laplacian = (4/(alpha+1)) * np.array([ [alpha/4, (1-alpha)/4, alpha/4], [(1-alpha)/4, -1, (1-alpha)/4], [alpha/4, (1-alpha)/4, alpha/4] ])
-    image_sharpener = convolve(im_trim, laplacian, mode='nearest')
-    image_sharp = im_trim - image_sharpener
-    image_sharp[(image_sharp<0)]=0; image_sharp[(image_sharp>1)]=1; 
-    #image = image_sharp
-    
-    # re-process with a new round of LIC
-    nkern = np.round(nkern/8.).astype('int')
-    if(nkern<4): nkern=4;
-    x = np.arange(nkern) / nkern;
-    kernel = np.sin(np.pi * x) * np.pi/(2.*nkern); 
-    image = lic_internal.line_integral_convolution(vx.astype(np.float32),vy.astype(np.float32), image_sharp.astype(np.float32), kernel.astype(np.float32))
-    
+    image = image_one
+    if trim:
+        # enhance contrast
+        #image_norm = (image-np.min(image))/np.ptp(image)
+        #print(np.mean(image_norm), np.median(image_norm), np.std(image_norm), np.percentile(image_norm,10),np.percentile(image_norm,25),np.percentile(image_norm,50),np.percentile(image_norm,75),np.percentile(image_norm,90))
+        vmin=np.mean(image_one)-np.std(image_one); vmax=np.mean(image_one)+np.std(image_one);
+        im_trim=(image_one-vmin)/(vmax-vmin); 
+        im_trim[(im_trim>=1)]=1; im_trim[(im_trim<=0)]=0; im_trim[(np.isnan(im_trim))]=0;
+        image = im_trim
+    if sharpen:
+        # sharpen image
+        alpha=0.5; laplacian = (4/(alpha+1)) * np.array([ [alpha/4, (1-alpha)/4, alpha/4], [(1-alpha)/4, -1, (1-alpha)/4], [alpha/4, (1-alpha)/4, alpha/4] ])
+        image_sharpener = convolve(im_trim, laplacian, mode='nearest')
+        image_sharp = im_trim - image_sharpener
+        image_sharp[(image_sharp<0)]=0; image_sharp[(image_sharp>1)]=1; 
+        image = image_sharp
+        # re-process with a new round of LIC
+        nkern = np.round(nkern/8.).astype('int')
+        if(nkern<4): nkern=4;
+        x = np.arange(nkern) / nkern;
+        kernel = np.sin(np.pi * x) * np.pi/(2.*nkern); 
+        image = lic_internal.line_integral_convolution(vx.astype(np.float32),vy.astype(np.float32), image_sharp.astype(np.float32), kernel.astype(np.float32))
     return image
 
 def get_lic_image(vx,vy,max_alpha=0.7):
     kernel_length = int(vx.shape[0]/1024)*32-1;
-    image = get_lic(vx, vy,nkern=kernel_length) # get LIC image
+    image = get_lic(vx, vy,nkern=kernel_length,sharpen=sharpen_LIC_map) # get LIC image
     image_color = matplotlib.colors.Normalize()(image)
     image_color = plt.cm.Greys(image_color)
     image_color[..., -1] = max_alpha*(image-np.min(image))/np.ptp(image) #set transparency
@@ -863,7 +862,7 @@ def make_input(files=["snapshot_000.hdf5"], rmax=False, full_box=False, center=[
                 interp_fac=1, np=1,res=512,v_res=32, keep_only_movie=False, fps=20, movie_name="sink_movie",dir='z',abundance_map=-1,\
                 center_on_star=0, N_high=1, Tcmap="inferno", cmap="viridis",ecmap="viridis", no_movie=True,make_movie=False, make_movie_only=False,outputfolder="output",cool_cmap='same',cmap_fresco='same',plot_cool_map_fresco=False,fresco_param=5e-4,fresco_mass_rescale=[0.0,0.0],\
                 plot_T_map=True,plot_v_map=False,plot_B_map=False,plot_energy_map=False,calculate_all_maps=False,plot_fresco_stars=False,sink_scale=0.1, sink_relscale=0.0025, sink_type=5, galunits=False,name_addition="",center_on_ID=0,no_pickle=False, no_timestamp=False,slice_height=0,velocity_scale=1000,arrow_color='white',\
-                vector_quiver_map=False, energy_v_scale=1000,\
+                vector_quiver_map=False, energy_v_scale=1000,sharpen_LIC_map=False,\
                 no_size_scale=False, center_on_densest=False, draw_axes=False, remake_only=False, rescale_hsml=1.0, smooth_center=False, highlight_wind=1.0,\
                 disable_multigrid=False):
     if (not isinstance(files, list)):
@@ -912,6 +911,7 @@ def make_input(files=["snapshot_000.hdf5"], rmax=False, full_box=False, center=[
         "--plot_cool_map": plot_cool_map,
         "--plot_energy_map": plot_energy_map,
         "--calculate_all_maps": calculate_all_maps,
+        "--sharpen_LIC_map": sharpen_LIC_map,
         "--plot_fresco_stars": plot_fresco_stars,
         "--plot_cool_map_fresco": plot_cool_map_fresco,
         "--plot_v_map": plot_v_map,
@@ -984,6 +984,7 @@ def main(input):
     global fresco_param; fresco_param = float(arguments["--fresco_param"])
     global fresco_mass_rescale; fresco_mass_rescale = np.array([float(c) for c in arguments["--fresco_mass_rescale"].split(',')])
     global keep_only_movie; keep_only_movie = arguments["--keep_only_movie"]
+    global sharpen_LIC_map; sharpen_LIC_map = arguments["--sharpen_LIC_map"]
     global galunits; galunits = arguments["--galunits"]
     global no_movie
     #no_movie = arguments["--no_movie"]
