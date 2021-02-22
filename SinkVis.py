@@ -400,7 +400,7 @@ def MakeImage(i):
                     B1 = B1[idx1]; B2 = B2[idx2];
                 m = m2 # mass to actually use in render
                 if abundance_map>-1:
-                    abundance1 = abundance1[idx1]; abundance2 = abundance1[idx2]
+                    abundance1 = abundance1[idx1]; abundance2 = abundance2[idx2]
                 if highlight_wind != 1:
                     m[id2 < 0] *= highlight_wind
                 # unload stuff to save memory
