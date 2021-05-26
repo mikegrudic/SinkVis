@@ -176,7 +176,7 @@ def blending(data1,data2,method='add_clip',param1=0.5,param2=0.2):
         return np.clip(data1+data2,0,1)
 
 def StarColor(mass_in_msun,cmap):
-    if cmap=='afmhot' or cmap=='inferno':
+    if cmap=='afmhot' or cmap=='inferno' or 'Blues':
         star_colors = np.array([[255, 100, 60],[120, 200, 150],[75, 80, 255]]) #alternate colors, red-green-blue, easier to see on a bright color map
     else:
         star_colors = np.array([[255, 203, 132],[255, 243, 233],[155, 176, 255]]) #default colors, reddish for small ones, yellow-white for mid sized and blue for large
@@ -184,7 +184,7 @@ def StarColor(mass_in_msun,cmap):
     return (colors[0],colors[1],colors[2])# if len(colors)==1 else colors)
 
 def Star_Edge_Color(cmap):
-    if cmap=='afmhot' or cmap=='inferno':
+    if cmap=='afmhot' or cmap=='inferno' or 'Blues':
         return 'black'
     else:
         return 'white'
@@ -862,7 +862,7 @@ def MakeMovie():
 def make_input(files=["snapshot_000.hdf5"], rmax=False, full_box=False, center=[0,0,0],limits=[0,0],Tlimits=[0,0],energy_limits=[0,0],\
                 interp_fac=1, np=1,res=512,v_res=32, keep_only_movie=False, fps=20, movie_name="sink_movie",dir='z',abundance_map=-1,\
                 center_on_star=0, N_high=1, Tcmap="inferno", cmap="viridis",ecmap="viridis", no_movie=True,make_movie=False, make_movie_only=False,outputfolder="output",cool_cmap='same',cmap_fresco='same',plot_cool_map_fresco=False,fresco_param=5e-4,fresco_mass_rescale=[0.0,0.0],\
-                plot_T_map=True,plot_v_map=False,plot_B_map=False,plot_energy_map=False,calculate_all_maps=False,plot_fresco_stars=False,sink_scale=0.1, sink_relscale=0.0025, sink_type=5, galunits=False,name_addition="",center_on_ID=0,no_pickle=False, no_timestamp=False,slice_height=0,velocity_scale=1000,arrow_color='white',\
+                plot_T_map=True,plot_v_map=False,plot_B_map=False,plot_cool_map=False,plot_energy_map=False,calculate_all_maps=False,plot_fresco_stars=False,sink_scale=0.1, sink_relscale=0.0025, sink_type=5, galunits=False,name_addition="",center_on_ID=0,no_pickle=False, no_timestamp=False,slice_height=0,velocity_scale=1000,arrow_color='white',\
                 vector_quiver_map=False, energy_v_scale=1000,sharpen_LIC_map=False,LIC_map_max_alpha=0.5,\
                 no_size_scale=False, center_on_densest=False, draw_axes=False, remake_only=False, rescale_hsml=1.0, smooth_center=False, highlight_wind=1.0,\
                 disable_multigrid=False):
@@ -918,7 +918,7 @@ def make_input(files=["snapshot_000.hdf5"], rmax=False, full_box=False, center=[
         "--plot_cool_map_fresco": plot_cool_map_fresco,
         "--plot_v_map": plot_v_map,
         "--plot_B_map": plot_B_map,
-        "--fresco_mass_rescale": fresco_mass_rescale,
+        "--fresco_mass_rescale": str(fresco_mass_rescale[0])+","+str(fresco_mass_rescale[1]),
         "--fresco_param": fresco_param,
         "--name_addition": name_addition,
         "--no_timestamp": no_timestamp,
