@@ -48,13 +48,13 @@ Options:
     --sharpen_LIC_map          If enabled SinkVis will try to sharpen the field lines in line-integral convolution maps (i.e. when using plot_B_map). May produce artifacts in the image.
     --LIC_map_max_alpha=<f>        Sets the maximum opacity of the field line map as it is blended with the background (i.e. surface density map). [default: 0.5]
     --calculate_all_maps       Calculates all data for the pickle files, even if they won't get plotted
-    --plot_fresco_stars        Plots surface density map with Hubble-like PSFs for the stars 
+    --plot_fresco_stars        Plots surface density map with Hubble-like PSFs for the stars
     --plot_cool_map_fresco     Plots cool map that uses Hubble-like PSFs for the stars
     --fresco_param=<f>         Parameter that sets the vmax parameter of amuse-fresco, the larger the value the more extended stellar PSFs are [default: 0.002]
     --fresco_mass_rescale=<min,max>  Parameter that determines how masses are rescaled for fresco. Stellar masses are roughly clipped between min and max values, useful to define a max as massive stars are extremely luminous and dominate the image [default: 0,5]
     --energy_v_scale=<v0>      Scale in the weighting of kinetic energy (w=m*(1+(v/v0)^2)), [default: 1000.0]
     --outputfolder=<name>      Specifies the folder to save the images and movies to
-    --name_addition=<name>     Extra string to be put after the name of the ouput files, defaults to empty string       
+    --name_addition=<name>     Extra string to be put after the name of the ouput files, defaults to empty string
     --no_pickle                Flag, if set no pickle file is created to make replots faster
     --no_timestamp             Flag, if set no timestamp will be put on the images
     --no_size_scale            Flag, if set no size scale will be put on the images
@@ -112,7 +112,7 @@ def find_sink_in_densest_gas(snapnum):
             Ngb_target = 32
             #load_from_snapshot("keys",0,datafolder,snapnum)
             #load_from_snapshot("keys",5,datafolder,snapnum)
-            #First,load the sinks 
+            #First,load the sinks
             ids = np.array(load_from_snapshot("ParticleIDs",sink_type,datafolder,snapnum))
             Nsink = len(ids)
             xs = length_unit*np.array(load_from_snapshot("Coordinates",sink_type,datafolder,snapnum))
@@ -132,12 +132,12 @@ def find_sink_in_densest_gas(snapnum):
             xs = xs[sink_order,:]
             ms = ms[sink_order]
             max_neighbor_gas_density = max_neighbor_gas_density[sink_order]
-            #Pick the ones we want 
+            #Pick the ones we want
             print("Sink particle with densest gas are:")
             for i in range(N_high):
                 print("\t ID %d at %g %g %g with mass %g and %g neighboring gas density"%(ids[i],xs[i,0],xs[i,1],xs[i,2],ms[i],max_neighbor_gas_density[i]))
             print("Saving "+filename)
-            outfile = open(filename, 'wb') 
+            outfile = open(filename, 'wb')
             pickle.dump([ids, xs, ms, max_neighbor_gas_density], outfile)
             outfile.close()
             return ids[:N_high]
@@ -146,14 +146,14 @@ def find_sink_in_densest_gas(snapnum):
             return [0]
     else:
         print("Loading data from "+filename)
-        infile = open(filename, 'rb') 
+        infile = open(filename, 'rb')
         temp = pickle.load(infile)
         infile.close()
-        ids = temp[0]; xs = temp[1]; ms = temp[2]; max_neighbor_gas_density = temp[3]; 
+        ids = temp[0]; xs = temp[1]; ms = temp[2]; max_neighbor_gas_density = temp[3];
         for i in range(N_high):
             print("\t ID %d at %g %g %g with mass %g and %g neighboring gas density"%(ids[i],xs[i,0],xs[i,1],xs[i,2],ms[i],max_neighbor_gas_density[i]))
         return ids[-N_high:]
-            
+
 def CoordTransform(x):
     return np.roll(x, {'z': 0, 'y': 1, 'x': 2}[arguments["--dir"]], axis=1)
 
@@ -167,7 +167,7 @@ def blending(data1,data2,method='add_clip',param1=0.5,param2=0.2):
     elif method=='mask': #adds the two images using a mask that prioritizes data1, parameters set by param1 and param2
         mask = np.sum(data1,axis=2); mask = mask/np.max(mask[:]);
         mask = sigmoid(mask,param1,param2)
-        return data1*mask[:,:,None]+data2*(1-mask[:,:,None])  
+        return data1*mask[:,:,None]+data2*(1-mask[:,:,None])
     elif method=='alpha': #add the two images using a constants alpha set by param1
         return (data1+data2)/np.max((data1+data2)[:])
     elif method=='add_norm': #add the two images and normalize to max
@@ -192,10 +192,10 @@ def Star_Edge_Color(cmap):
 def get_lic(vx,vy,nkern=31, trim=True, sharpen=False,):
     #Generate field lines for vector field (vx,vy) using line integral-convolution, based on visualization script for FIRE from Philip Hopkins
     from licplot import lic_internal #only import line integral-convolution module if used, can be installed as pip install licplot
-    
-    texture = np.random.rand(vx.shape[0],vx.shape[1]); 
+
+    texture = np.random.rand(vx.shape[0],vx.shape[1]);
     x = np.arange(nkern) / nkern;
-    kernel = np.sin(np.pi * x) * np.pi/(2.*nkern); 
+    kernel = np.sin(np.pi * x) * np.pi/(2.*nkern);
     image_one = lic_internal.line_integral_convolution(vx.astype(np.float32),vy.astype(np.float32), texture.astype(np.float32), kernel.astype(np.float32))
     image = image_one
     if trim:
@@ -203,7 +203,7 @@ def get_lic(vx,vy,nkern=31, trim=True, sharpen=False,):
         #image_norm = (image-np.min(image))/np.ptp(image)
         #print(np.mean(image_norm), np.median(image_norm), np.std(image_norm), np.percentile(image_norm,10),np.percentile(image_norm,25),np.percentile(image_norm,50),np.percentile(image_norm,75),np.percentile(image_norm,90))
         vmin=np.mean(image_one)-np.std(image_one); vmax=np.mean(image_one)+np.std(image_one);
-        im_trim=(image_one-vmin)/(vmax-vmin); 
+        im_trim=(image_one-vmin)/(vmax-vmin);
         im_trim[(im_trim>=1)]=1; im_trim[(im_trim<=0)]=0; im_trim[(np.isnan(im_trim))]=0;
         image = im_trim
     if sharpen:
@@ -211,13 +211,13 @@ def get_lic(vx,vy,nkern=31, trim=True, sharpen=False,):
         alpha=0.5; laplacian = (4/(alpha+1)) * np.array([ [alpha/4, (1-alpha)/4, alpha/4], [(1-alpha)/4, -1, (1-alpha)/4], [alpha/4, (1-alpha)/4, alpha/4] ])
         image_sharpener = convolve(im_trim, laplacian, mode='nearest')
         image_sharp = im_trim - image_sharpener
-        image_sharp[(image_sharp<0)]=0; image_sharp[(image_sharp>1)]=1; 
+        image_sharp[(image_sharp<0)]=0; image_sharp[(image_sharp>1)]=1;
         image = image_sharp
         # re-process with a new round of LIC
         nkern = np.round(nkern/8.).astype('int')
         if(nkern<4): nkern=4;
         x = np.arange(nkern) / nkern;
-        kernel = np.sin(np.pi * x) * np.pi/(2.*nkern); 
+        kernel = np.sin(np.pi * x) * np.pi/(2.*nkern);
         image = lic_internal.line_integral_convolution(vx.astype(np.float32),vy.astype(np.float32), image_sharp.astype(np.float32), kernel.astype(np.float32))
     return image
 
@@ -235,17 +235,17 @@ def MakeImage(i):
     global Tlimits
     global energy_limits
     global v_res
-    
+
     if disable_multigrid:
         GridSurfaceDensity_func = GridSurfaceDensity
     else:
         GridSurfaceDensity_func = GridSurfaceDensityMultigrid
-    
+
     snapnum1=file_numbers[i]
     snapnum2=(file_numbers[min(i+1,len(filenames)-1)] if n_interp>1 else snapnum1)
     sink_IDs_to_center_on = np.array([center_on_ID]) #default, will not center
     if center_on_densest:
-        #Find the IDs of the sinks with the densest gas nearby 
+        #Find the IDs of the sinks with the densest gas nearby
         sink_IDs_to_center_on=find_sink_in_densest_gas(snapnum1)
     if center_on_star:
         #Find the IDs of the most massive sinks
@@ -256,6 +256,7 @@ def MakeImage(i):
         #Check if all relevant pickle files exist
         all_pickle_exist = True
         for k in range(n_interp):
+            if (snapnum1==snapnum2): k=0 #no need to do interpolation for the last one
             pickle_filename = pickle_filename_gen(snapnum1,k,n_interp,r,res,center,sink_ID)
             if outputfolder:
                 pickle_filename=outputfolder+'/'+pickle_filename
@@ -268,7 +269,7 @@ def MakeImage(i):
                 if isinstance(dict_from_pickle,dict):
                     #Basics
                     all_pickle_exist = all_pickle_exist & ('time' in dict_from_pickle) & ('numpart_total' in dict_from_pickle) & ('sigma_gas' in dict_from_pickle) & ('star_center' in dict_from_pickle)
-                    if ( ('numpart_total' in dict_from_pickle) and dict_from_pickle['numpart_total'][sink_type] ): 
+                    if ( ('numpart_total' in dict_from_pickle) and dict_from_pickle['numpart_total'][sink_type] ):
                         all_pickle_exist = all_pickle_exist & ('x_star' in dict_from_pickle) & ('v_star' in dict_from_pickle) & ('m_star' in dict_from_pickle)
                     if plot_T_map or calculate_all_maps:
                         all_pickle_exist = all_pickle_exist & ('Tmap_gas' in dict_from_pickle) & ('logTmap_gas' in dict_from_pickle)
@@ -290,7 +291,7 @@ def MakeImage(i):
             numpart_total=load_from_snapshot("NumPart_Total",0,datafolder,snapnum1)
             if not numpart_total[sink_type] and (center_on_star or (sink_ID>0)): return
             if numpart_total[sink_type]:
-                id1s, id2s = np.int_(load_from_snapshot("ParticleIDs",sink_type,datafolder,snapnum1)), np.int_(load_from_snapshot("ParticleIDs",sink_type,datafolder,snapnum2)) 
+                id1s, id2s = np.int_(load_from_snapshot("ParticleIDs",sink_type,datafolder,snapnum1)), np.int_(load_from_snapshot("ParticleIDs",sink_type,datafolder,snapnum2))
                 unique, counts = np.unique(id2s, return_counts=True)
                 doubles = unique[counts>1]
                 id2s[np.in1d(id2s,doubles)]=-1
@@ -318,7 +319,7 @@ def MakeImage(i):
                 x1s = x1s[idx1]; m1s = m1s[idx1]; v1s = v1s[idx1];
                 x2s = x2s[idx2]; m2s = m2s[idx2]; v2s = v2s[idx2];
                 m_star = m2s
-                if ((sink_ID>0) and (not np.any(common_sink_ids==sink_ID)) ): 
+                if ((sink_ID>0) and (not np.any(common_sink_ids==sink_ID)) ):
                     print("Sink ID %d not present in "%(sink_ID)+filenames[i])
                     print("Sink IDs present: ",np.int64(common_sink_ids))
                     print("Masses of present sinks: ",m_star)
@@ -339,13 +340,13 @@ def MakeImage(i):
                     np.savetxt(sinkfilename,np.transpose(np.array([np.int64(ids_m),ms_m,dxs_m[:,0],dxs_m[:,1],dxs_m[:,2]])))
                     return
             if numpart_total[0]:
-                #We are reading the various gas properties in the current and the next snapshot 
+                #We are reading the various gas properties in the current and the next snapshot
                 id1, id2 = np.int_(load_from_snapshot("ParticleIDs",0,datafolder,snapnum1)), np.int_(load_from_snapshot("ParticleIDs",0,datafolder,snapnum2))
                 wind_idx1 = np.in1d(id1, wind_ids)
 #                print(np.sum(id1==wind_ids[0]), np.sum(id1==wind_ids[1]), id1.min(), id1.max())
                 if np.any(wind_idx1):
                     progenitor_ids = np.int_(load_from_snapshot("ParticleIDGenerationNumber",0,datafolder,snapnum1))[wind_idx1]
-                    child_ids = np.int_(load_from_snapshot("ParticleChildIDsNumber",0,datafolder,snapnum1))[wind_idx1]                    
+                    child_ids = np.int_(load_from_snapshot("ParticleChildIDsNumber",0,datafolder,snapnum1))[wind_idx1]
                     wind_particle_ids = -((progenitor_ids << 16) + child_ids) # bit-shift the progenitor ID outside the plausible range for particle count, then add child ids to get a unique new id
                     id1[wind_idx1] = wind_particle_ids
 #                    print(np.sum(id1==wind_ids[0]), np.sum(id1==wind_ids[1]), id1.min(), id1.max())
@@ -424,9 +425,9 @@ def MakeImage(i):
                     jump_ind1 = (x2s - x1s) > (boxsize/2) #assuming no particle travels more than half of the the box in a single snapshot
                     jump_ind2 = (x1s - x2s) > (boxsize/2)
                     if np.any(jump_ind1):
-                        x_star[jump_ind1] = (float(k)/n_interp * (x2s[jump_ind1]-boxsize) + (n_interp-float(k))/n_interp * x1s[jump_ind1])%boxsize 
+                        x_star[jump_ind1] = (float(k)/n_interp * (x2s[jump_ind1]-boxsize) + (n_interp-float(k))/n_interp * x1s[jump_ind1])%boxsize
                     if np.any(jump_ind2):
-                        x_star[jump_ind2] = (float(k)/n_interp * x2s[jump_ind2] + (n_interp-float(k))/n_interp * (x1s[jump_ind2]-boxsize))%boxsize 
+                        x_star[jump_ind2] = (float(k)/n_interp * x2s[jump_ind2] + (n_interp-float(k))/n_interp * (x1s[jump_ind2]-boxsize))%boxsize
                     dict_to_pickle['x_star'] = x_star; dict_to_pickle['v_star'] = v_star; dict_to_pickle['m_star'] = m_star #store data to save
                 star_center = np.zeros(3)
                 star_v_center = np.zeros(3)
@@ -455,28 +456,28 @@ def MakeImage(i):
                         star_center[1] = yfit(snapnum1+float(k)/n_interp)
                         star_center[2] = zfit(snapnum1+float(k)/n_interp)
                         print("Smoothing changed centering from %g %g %g to %g %g %g"%(star_center_old[0],star_center_old[1],star_center_old[2],star_center[0],star_center[1],star_center[2]))
-                dict_to_pickle['star_center'] = star_center 
+                dict_to_pickle['star_center'] = star_center
                 if numpart_total[0]:
                     x = float(k)/n_interp * x2 + (n_interp-float(k))/n_interp * x1
                     #correct for periodic box
                     jump_ind1 = (x2 - x1) > (boxsize/2) #assuming no particle travels more than half of the the box in a single snapshot
                     jump_ind2 = (x1 - x2) > (boxsize/2)
                     if np.any(jump_ind1):
-                        x[jump_ind1] = (float(k)/n_interp * (x2[jump_ind1]-boxsize) + (n_interp-float(k))/n_interp * x1[jump_ind1])%boxsize 
+                        x[jump_ind1] = (float(k)/n_interp * (x2[jump_ind1]-boxsize) + (n_interp-float(k))/n_interp * x1[jump_ind1])%boxsize
                     if np.any(jump_ind2):
-                        x[jump_ind2] = (float(k)/n_interp * x2[jump_ind2] + (n_interp-float(k))/n_interp * (x1[jump_ind2]-boxsize))%boxsize 
+                        x[jump_ind2] = (float(k)/n_interp * x2[jump_ind2] + (n_interp-float(k))/n_interp * (x1[jump_ind2]-boxsize))%boxsize
                     x -= star_center
                     v = float(k)/n_interp * v2 + (n_interp-float(k))/n_interp * v1
                     v -= star_v_center
                     if plot_B_map or calculate_all_maps:
                         B = float(k)/n_interp * B2 + (n_interp-float(k))/n_interp * B1
-                    
+
                     logu = float(k)/n_interp * np.log10(u2) + (n_interp-float(k))/n_interp * np.log10(u1)
                     u = (10**logu)/1.01e4 #converting to K
 
                     h = float(k)/n_interp * h2 + (n_interp-float(k))/n_interp * h1
                     h = np.clip(h,L/res, 1e100)
-                    
+
                     if abundance_map>-1:
                         abundance = float(k)/n_interp * abundance2 + (n_interp-float(k))/n_interp * abundance1
                         sigma_gas = GridSurfaceDensity_func(m*abundance, x, h, star_center*0, L, res=res).T
@@ -516,20 +517,27 @@ def MakeImage(i):
                 #Save data
                 if not no_pickle:
                     print("Saving "+pickle_filename)
-                    outfile = open(pickle_filename, 'wb') 
+                    outfile = open(pickle_filename, 'wb')
                     pickle.dump(dict_to_pickle, outfile)
                     outfile.close()
             else:
+                if (snapnum1==snapnum2) and (k>0): #check if we have interpolating frames for the last snapshot (i.e. if this is a run on only a part of the snapshot we previously ran SinkVis on)
+                    alt_pickle_filename = pickle_filename_gen(snapnum1,k,n_interp,r,res,center,sink_ID)
+                    if outputfolder:
+                        alt_pickle_filename=outputfolder+'/'+alt_pickle_filename
+                    if os.path.exists(alt_pickle_filename):
+                        pickle_filename = alt_pickle_filename
+                        print("Pickle file with interpolating frames for the last snapshot seems to exist at "+alt_pickle_filename+"\n SinkVis will try to use this file, but it might lead to errors.")
                 #Load data from pickle file
                 print("Loading "+pickle_filename)
-                infile = open(pickle_filename, 'rb') 
+                infile = open(pickle_filename, 'rb')
                 dict_from_pickle = pickle.load(infile)
                 #Assign data to variables
-                time = dict_from_pickle['time']; numpart_total = dict_from_pickle['numpart_total']; 
+                time = dict_from_pickle['time']; numpart_total = dict_from_pickle['numpart_total'];
                 sigma_gas = dict_from_pickle['sigma_gas']; star_center = dict_from_pickle['star_center'];
                 if numpart_total[sink_type]:
                     x_star = dict_from_pickle['x_star']; v_star = dict_from_pickle['v_star']; m_star = dict_from_pickle['m_star']
-                if plot_T_map: 
+                if plot_T_map:
                     Tmap_gas = dict_from_pickle['Tmap_gas']
                     logTmap_gas = dict_from_pickle['logTmap_gas']
                 if plot_v_map: v_field = dict_from_pickle['v_field']
@@ -562,16 +570,16 @@ def MakeImage(i):
                 fTgas = (np.log10(Tmap_gas)-np.log10(Tlimits[0]))/np.log10(Tlimits[1]/Tlimits[0])
                 fTgas = np.clip(fTgas,0,1)
                 fTgas = np.flipud(fTgas)
-                Tdata = fTgas[:,:,np.newaxis]*plt.get_cmap(Tcmap)(fTgas)[:,:,:3] 
+                Tdata = fTgas[:,:,np.newaxis]*plt.get_cmap(Tcmap)(fTgas)[:,:,:3]
                 Tdata = np.clip(Tdata,0,1)
                 #Gas log temperature map
                 flogTgas = (logTmap_gas-logTlimits[0])/(logTlimits[1]-logTlimits[0])
                 flogTgas = np.clip(flogTgas,0,1)
                 flogTgas = np.flipud(flogTgas)
-                logTdata = flogTgas[:,:,np.newaxis]*plt.get_cmap(Tcmap)(flogTgas)[:,:,:3] 
+                logTdata = flogTgas[:,:,np.newaxis]*plt.get_cmap(Tcmap)(flogTgas)[:,:,:3]
                 logTdata = np.clip(logTdata,0,1)
-                
-                
+
+
             if plot_energy_map:
                 #Adjust energy_limits if not set
                 if ((energy_limits[0]==0) or (energy_limits[1]==0)):
@@ -582,7 +590,7 @@ def MakeImage(i):
                 #Gas temperature map
                 fegas = (np.log10(energy_map_gas)-np.log10(energy_limits[0]))/np.log10(energy_limits[1]/energy_limits[0])
                 fegas = np.clip(fegas,0,1)
-                energy_data = fegas[:,:,np.newaxis]*plt.get_cmap(ecmap)(fegas)[:,:,:3] 
+                energy_data = fegas[:,:,np.newaxis]*plt.get_cmap(ecmap)(fegas)[:,:,:3]
                 energy_data = np.clip(energy_data,0,1)
 
             if plot_cool_map:
@@ -593,11 +601,11 @@ def MakeImage(i):
                 mapcolor = plt.get_cmap(cool_cmap)(np.log10(sigma_1D/0.1)/2)
                 cool_data = ls.blend_hsv(mapcolor[:,:,:3], fgas[:,:,None])
                 cool_data = np.flipud(cool_data)
-                
+
             local_name_addition = name_addition
             if sink_ID and (len(sink_IDs_to_center_on)>1):
                 local_name_addition = '_%d'%(sink_ID) + local_name_addition
-            file_number = file_numbers[i]            
+            file_number = file_numbers[i]
             filename = "SurfaceDensity%s_%s.%s.png"%(local_name_addition,str(file_number).zfill(4),k)
             frescofilename = "SurfaceDensity_fresco%s_%s.%s.png"%(local_name_addition,str(file_number).zfill(4),k)
             Tfilename = "Temperature%s_%s.%s.png"%(local_name_addition,str(file_number).zfill(4),k)
@@ -649,9 +657,9 @@ def MakeImage(i):
                 flist.append(coolfilename)
             for fname in flist:
                 gridres=res
-                
+
                 #Add magnetic field
-                if plot_B_map: 
+                if plot_B_map:
                     #from licplot import lic_internal #only import line integral-convolution module if used, can be installed as pip install licplot
                     xlim = [boxsize/2.0+center[0]+star_center[0]-r,boxsize/2.0+center[0]+star_center[0]+r]
                     ylim = [boxsize/2.0+center[1]+star_center[1]-r,boxsize/2.0+center[1]+star_center[1]+r]
@@ -668,9 +676,9 @@ def MakeImage(i):
                     fig.subplots_adjust(bottom = 0); fig.subplots_adjust(top = 1); fig.subplots_adjust(right = 1); fig.subplots_adjust(left = 0)
                     fig.savefig(fname,dpi=int(gridres/8))
                     plt.close(fig)
-                
+
                 #Add velocity field
-                if plot_v_map: 
+                if plot_v_map:
                     if not vector_quiver_map: v_res=res # this removes the user setting, but it should not really matter for field lines
                     if v_res>res:
                         print("v_res too high, resetting to %d"%(res))
@@ -701,7 +709,7 @@ def MakeImage(i):
                             v_min_scale = 0.3 * (8/v_res) #prefactor times the space between velocity grid points
                             vx_field = vx_field/quiver_scale; vy_field = vy_field/quiver_scale
                             #Correct for too small arrows
-                            vlength = np.sqrt(vx_field**2 + vy_field**2); 
+                            vlength = np.sqrt(vx_field**2 + vy_field**2);
                             vlength_corrections = np.clip(v_min_scale/vlength,1.0,None)
                             vx_field = vx_field*vlength_corrections; vy_field = vy_field*vlength_corrections
                         #Correction to align the arrows and the background
@@ -717,7 +725,7 @@ def MakeImage(i):
                     fig.subplots_adjust(bottom = 0); fig.subplots_adjust(top = 1); fig.subplots_adjust(right = 1); fig.subplots_adjust(left = 0)
                     fig.savefig(fname,dpi=int(gridres/8))
                     plt.close(fig)
-                    
+
                 #Add stars
                 F = Image.open(fname)
                 gridres = F.size[0]
@@ -740,7 +748,7 @@ def MakeImage(i):
                     d.flush()
                 F.save(fname)
                 F.close()
-                    
+
                 #Add labels and scale
                 F = Image.open(fname)
                 gridres = F.size[0]
@@ -785,7 +793,7 @@ def MakeImage(i):
                     #plt.figure(num=fig.number, figsize=(1.3*gridres/150, 1.2*gridres/150), dpi=550)
                     fig.savefig(fname,dpi=int(gridres/5))
                     plt.close(fig)
-            
+
 
 def MakeMovie():
     #Movie about surface density
@@ -857,7 +865,7 @@ def MakeMovie():
             for i in filenames:
                 os.remove(i)
         os.remove(framefile)
-            
+
 
 def make_input(files=["snapshot_000.hdf5"], rmax=False, full_box=False, center=[0,0,0],limits=[0,0],Tlimits=[0,0],energy_limits=[0,0],\
                 interp_fac=1, np=1,res=512,v_res=32, keep_only_movie=False, fps=20, movie_name="sink_movie",dir='z',abundance_map=-1,\
@@ -963,7 +971,7 @@ def main(input):
     global logTlimits; logTlimits = np.zeros(2)
     if Tlimits[0]:
         #used for log T plot
-        logTlimits[:] = np.log10(Tlimits[:]) 
+        logTlimits[:] = np.log10(Tlimits[:])
     global res; res = int(arguments["--res"])
     global v_res; v_res = int(arguments["--v_res"])
     nproc = int(arguments["--np"])
@@ -1016,7 +1024,7 @@ def main(input):
     global draw_axes; draw_axes = arguments["--draw_axes"]
     global no_size_scale; no_size_scale = arguments["--no_size_scale"]
     global fps; fps = float(arguments["--fps"])
-    global velocity_scale; velocity_scale = float(arguments["--velocity_scale"]) 
+    global velocity_scale; velocity_scale = float(arguments["--velocity_scale"])
     global energy_v_scale; energy_v_scale = float(arguments["--energy_v_scale"])
     global energy_v_scale_text; energy_v_scale_text=''
     if plot_energy_map:
@@ -1049,8 +1057,8 @@ def main(input):
     r *= length_unit
     L *= length_unit
 
-    global font; font = ImageFont.truetype("LiberationSans-Regular.ttf", res//12) 
-    
+    global font; font = ImageFont.truetype("LiberationSans-Regular.ttf", res//12)
+
     #Only change the pickle filename if we rescale
     global rescale_text
     if (rescale_hsml!=1.0):
@@ -1060,13 +1068,13 @@ def main(input):
     global slice_text; slice_text=''
     if slice_height:
         slice_text='_slice%g'%(slice_height)
-        
-               
-    
+
+
+
     if outputfolder:
         if not os.path.exists(outputfolder):
             os.mkdir(outputfolder)
-   
+
    #Try to guess surface density limits for multiple snap runs (can't guess within MakeImage routine due to parallelization, also the first image is unlikely to be useful as it is often just the IC) so we will run the last one first, without parallelization
     if ( ( (limits[0]==0) or (Tlimits[0]==0 and plot_T_map) ) and (len(filenames) > 1) ):
         print("Surface density or temperature limits not set, running final snapshot first to guess the appropriate values.")
@@ -1076,9 +1084,9 @@ def main(input):
             Pool(nproc).map(MakeImage, (f for f in range(len(filenames))), chunksize=1)
         else:
             [MakeImage(i) for i in range(len(filenames))]
-    if (len(filenames) > 1 and (not no_movie) ): 
+    if (len(filenames) > 1 and (not no_movie) ):
         MakeMovie() # only make movie if plotting multiple files
-        
+
 if __name__ == "__main__":
     arguments = docopt(__doc__)
     main(arguments)
