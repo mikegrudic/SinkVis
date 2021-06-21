@@ -6,7 +6,7 @@ SinkVis.py <files> ... [options]
 Options:
     -h --help                  Show this screen.
     --rmax=<pc>                Maximum radius of plot window; defaults to box size/10.
-    --dir=<x,y,z>              Coordinate direction to orient the image along - x, y, or z [default: z]
+    --dir=<x,y,z>              Coordinate direction to orient the image along - x, y, or z. It also accepts vector values [default: z]
     --full_box                 Sets the plot to the entire box, overrides rmax
     --c=<cx,cy,cz>             Coordinates of plot window center relative to box center [default: 0.0,0.0,0.0]
     --limits=<min,max>         Dynamic range of surface density colormap [default: 0,0]
@@ -39,6 +39,11 @@ Options:
     --center_on_densest        Center image on the N_high sinks with the densest gas nearby
     --N_high=<N>               Number of sinks to center on using the center_on_star or center_on_densest flags [default: 1]
     --center_on_ID=<ID>        Center image on sink particle with specific ID, does not center if zero [default: 0]
+    --rotating_images          If set SinkVis will create a set of images for a single snashot by rotating the system around a pre-specified rotation_axis
+    --rotation_init=<f>        Rotation angle for the first image around the rotation axis [default: 0]
+    --rotation_max=<f>         Rotation angle for the final image around the rotation axis [default: 6.2831853]
+    --rotation_steps=<N>       Number rotational steps (i.e. number of images to be made), spanning from the initial to the maximum rotation [default: 4]
+    --rotation_axis=<x,y,z>    Vector defining the axis around whic the rotated images are made [default: 0.0,1.0,0.0]
     --galunits                 Use default GADGET units
     --plot_T_map               Plots both surface density and average temperature maps
     --plot_B_map               Overplots magnetic field map on plots
@@ -96,8 +101,12 @@ import pickle
 
 wind_ids = np.array([1913298393, 1913298394])
 
-def pickle_filename_gen(snapnum,k,n_interp,r,res,center,sink_ID):
-    return "Sinkvis_snap%d_%d_%d_r%g_res%d_c%g_%g_%g_0_%d_%s"%(snapnum,k,n_interp,r,res,center[0],center[1],center[2],sink_ID,arguments["--dir"])+abundance_text+rescale_text+slice_text+smooth_text+energy_v_scale_text+".pickle"
+def pickle_filename_gen(snapnum,k,n_interp,r,res,center,sink_ID,dir_local):
+    if isinstance(dir_local,str):
+        dir_local_str=dir_local
+    else:
+        dir_local_str="%g,%g,%g"%(dir_local[0],dir_local[1],dir_local[2])
+    return "Sinkvis_snap%d_%d_%d_r%g_res%d_c%g_%g_%g_0_%d_%s"%(snapnum,k,n_interp,r,res,center[0],center[1],center[2],sink_ID,dir_local_str)+abundance_text+rescale_text+slice_text+smooth_text+energy_v_scale_text+".pickle"
 
 def find_sink_in_densest_gas(snapnum):
     #Find the N_high sinks in snapshot near the densest gas and return their ID, otherwise return 0
@@ -154,8 +163,35 @@ def find_sink_in_densest_gas(snapnum):
             print("\t ID %d at %g %g %g with mass %g and %g neighboring gas density"%(ids[i],xs[i,0],xs[i,1],xs[i,2],ms[i],max_neighbor_gas_density[i]))
         return ids[-N_high:]
 
-def CoordTransform(x):
-    return np.roll(x, {'z': 0, 'y': 1, 'x': 2}[arguments["--dir"]], axis=1)
+def CoordTransformMtx(e3, e2_orig=None):
+    #Prepare some alternatives in case we get parallel or misisng e2
+    ey = np.array([0,1,0])
+    ez = np.array([0,0,1])
+    e2_to_try = [ey, ez]
+    if not (e2_orig is None): e2_to_try = [e2_orig/np.linalg.norm(e2_orig)]+e2_to_try
+    e3 = e3/np.linalg.norm(e3) #normalize just to be sure
+    for e2 in e2_to_try:
+        e1 = np.cross(e2,e3)
+        if np.linalg.norm(e1):
+            break
+    return np.vstack((e1,e2,e3))
+
+def CoordTransform(x,dir_local):
+    if isinstance(dir_local, str):
+        if x.ndim == 2:
+            roll_axis = -1
+        else:
+            roll_axis = 0
+        return np.roll(x, {'z': 0, 'y': 1, 'x': 2}[dir_local], axis=roll_axis)
+    else:
+        transform_mtx = CoordTransformMtx(dir_local)
+        return (x @ transform_mtx)
+
+def CoordLabelTransform(dir_local):
+    if isinstance(dir_local, str):
+        return np.roll(['X','Y','Z'], {'z': 0, 'y': 1, 'x': 2}[dir_local])
+    else:
+        return [r'$\tilde{X}',r'$\tilde{Y}',r'$\tilde{Z}']
 
 def sigmoid(x,x0,scale):
     return 1.0/(1.0 + np.exp(-(x-x0)/scale))
@@ -235,11 +271,30 @@ def MakeImage(i):
     global Tlimits
     global energy_limits
     global v_res
-
     if disable_multigrid:
         GridSurfaceDensity_func = GridSurfaceDensity
     else:
         GridSurfaceDensity_func = GridSurfaceDensityMultigrid
+
+    #Deal with projection direction
+    dir_local = arguments["--dir"]
+    if rotating_images:
+        ez = np.array([0,0,1])
+        #Get initial projection direction
+        if arguments["--dir"] in ['x','y','z']:
+            dir_init=CoordTransform(ez,arguments["--dir"]) #get it in vector format
+        else:
+            dir_init=dir_local
+        #Get coordinate system for rotation
+        transform_mtx = CoordTransformMtx(rotation_axis)
+        inv_transform_mtx = np.linalg.inv(transform_mtx)
+        #Calculate rotation for current images
+        theta = rotation_init + i * rotation_rate
+        rotation_mtx = np.array(((np.cos(theta), np.sin(theta),0), (-np.sin(theta), np.cos(theta),0), (0,0,1)))
+        dir_local = transform_mtx.transpose() @ (rotation_mtx @ (transform_mtx @ dir_init))
+    #Deal with centering
+    center = CoordTransform(center_global,dir_local)
+    box_center = CoordTransform(np.array([boxsize,boxsize,boxsize])/2,dir_local)
 
     snapnum1=file_numbers[i]
     snapnum2=(file_numbers[min(i+1,len(filenames)-1)] if n_interp>1 else snapnum1)
@@ -257,7 +312,7 @@ def MakeImage(i):
         all_pickle_exist = True
         for k in range(n_interp):
             if (snapnum1==snapnum2): k=0 #no need to do interpolation for the last one
-            pickle_filename = pickle_filename_gen(snapnum1,k,n_interp,r,res,center,sink_ID)
+            pickle_filename = pickle_filename_gen(snapnum1,k,n_interp,r,res,center,sink_ID,dir_local)
             if outputfolder:
                 pickle_filename=outputfolder+'/'+pickle_filename
             all_pickle_exist = all_pickle_exist & os.path.exists(pickle_filename)
@@ -296,22 +351,22 @@ def MakeImage(i):
                 doubles = unique[counts>1]
                 id2s[np.in1d(id2s,doubles)]=-1
                 x1s, x2s = length_unit*np.array(load_from_snapshot("Coordinates",sink_type,datafolder,snapnum1))[id1s.argsort()], length_unit*np.array(load_from_snapshot("Coordinates",sink_type,datafolder,snapnum2))[id2s.argsort()]
-                x1s, x2s = CoordTransform(x1s), CoordTransform(x2s)
+                x1s, x2s = CoordTransform(x1s,dir_local), CoordTransform(x2s,dir_local)
                 m1s, m2s = mass_unit*np.array(load_from_snapshot("Masses",sink_type,datafolder,snapnum1))[id1s.argsort()], mass_unit*np.array(load_from_snapshot("Masses",sink_type,datafolder,snapnum2))[id2s.argsort()]
                 v1s, v2s = velocity_unit*np.array(load_from_snapshot("Velocities",sink_type,datafolder,snapnum1))[id1s.argsort()], velocity_unit*np.array(load_from_snapshot("Velocities",sink_type,datafolder,snapnum2))[id2s.argsort()]
-                v1s, v2s = CoordTransform(v1s), CoordTransform(v2s)
+                v1s, v2s = CoordTransform(v1s,dir_local), CoordTransform(v2s,dir_local)
                 # take only the particles that are in both snaps
                 common_sink_ids = np.intersect1d(id1s,id2s)
                 if slice_height:
                     star_center1 = np.zeros(3)
                     star_center2 = np.zeros(3)
                     if sink_ID:
-                        star_center1 = np.squeeze(x1s[id1s==sink_ID]-boxsize/2)
-                        star_center2 = np.squeeze(x2s[id2s==sink_ID]-boxsize/2)
+                        star_center1 = np.squeeze(x1s[id1s==sink_ID]-box_center)
+                        star_center2 = np.squeeze(x2s[id2s==sink_ID]-box_center)
                     #Find which particles are within the slice in at least on snapshot and keep those only
-                    dxs = np.abs(x1s-star_center1-center-boxsize/2)
+                    dxs = np.abs(x1s-star_center1-center-box_center)
                     ids_in_slice1 = id1s[(dxs[:,2]<=slice_height)]
-                    dxs = np.abs(x2s-star_center2-center-boxsize/2)
+                    dxs = np.abs(x2s-star_center2-center-box_center)
                     ids_in_slice2 = id2s[(dxs[:,2]<=slice_height)]
                     common_sink_ids = np.intersect1d(common_sink_ids,np.union1d(ids_in_slice1,ids_in_slice2))
                 idx1 = np.in1d(np.sort(id1s),common_sink_ids)
@@ -323,10 +378,10 @@ def MakeImage(i):
                     print("Sink ID %d not present in "%(sink_ID)+filenames[i])
                     print("Sink IDs present: ",np.int64(common_sink_ids))
                     print("Masses of present sinks: ",m_star)
-                    print("Positions of present sinks: ",x1s-boxsize/2)
+                    print("Positions of present sinks: ",x1s-box_center)
                     ids_m=np.int64(common_sink_ids[m_star>2])
                     ms_m=m_star[m_star>2]
-                    dxs_m=x1s[m_star>2]-boxsize/2
+                    dxs_m=x1s[m_star>2]-box_center
                     #sort, for now by x-y radial distance
                     drs_m=np.sqrt(dxs_m[:,0]**2+dxs_m[:,1]**2)
                     sortind = np.argsort(drs_m)
@@ -367,18 +422,18 @@ def MakeImage(i):
                     abundance1 = (np.array(load_from_snapshot("Metallicity",0,datafolder,snapnum1))[:,abundance_map])[id1_order]
                     abundance2 = (np.array(load_from_snapshot("Metallicity",0,datafolder,snapnum2))[:,abundance_map])[id2_order]
                 x1, x2 = length_unit*np.array(load_from_snapshot("Coordinates",0,datafolder,snapnum1))[id1_order], length_unit*np.array(load_from_snapshot("Coordinates",0,datafolder,snapnum2))[id2_order]
-                x1, x2 = CoordTransform(x1), CoordTransform(x2)
+                x1, x2 = CoordTransform(x1,dir_local), CoordTransform(x2,dir_local)
                 if not galunits:
-                    x1 -= boxsize/2 + center
-                    x2 -= boxsize/2 + center
+                    x1 -= box_center + center
+                    x2 -= box_center + center
                 v1, v2 = velocity_unit*np.array(load_from_snapshot("Velocities",0,datafolder,snapnum1))[id1_order], velocity_unit*np.array(load_from_snapshot("Velocities",0,datafolder,snapnum2))[id2_order]
-                v1, v2 = CoordTransform(v1), CoordTransform(v2)
+                v1, v2 = CoordTransform(v1,dir_local), CoordTransform(v2,dir_local)
                 u1, u2 = np.array(load_from_snapshot("InternalEnergy",0,datafolder,snapnum1))[id1_order], np.array(load_from_snapshot("InternalEnergy",0,datafolder,snapnum2))[id2_order]
                 h1, h2 = length_unit*np.array(load_from_snapshot("SmoothingLength",0,datafolder,snapnum1))[id1_order], length_unit*np.array(load_from_snapshot("SmoothingLength",0,datafolder,snapnum2))[id2_order]
                 m1, m2 = mass_unit*np.array(load_from_snapshot("Masses",0,datafolder,snapnum1))[id1_order], mass_unit*np.array(load_from_snapshot("Masses",0,datafolder,snapnum2))[id2_order]
                 if plot_B_map or calculate_all_maps:
                     B1, B2 = B_unit*np.array(load_from_snapshot("MagneticField",0,datafolder,snapnum1))[id1_order], B_unit*np.array(load_from_snapshot("MagneticField",0,datafolder,snapnum2))[id2_order]
-                    B1, B2 = CoordTransform(B1), CoordTransform(B2)
+                    B1, B2 = CoordTransform(B1,dir_local), CoordTransform(B2,dir_local)
                 # take only the cells that are in both snaps
                 common_ids = np.intersect1d(id1,id2)
                 if slice_height:
@@ -412,7 +467,7 @@ def MakeImage(i):
                 k_in_filename = k
             else:
                 k_in_filename = 0
-            pickle_filename = pickle_filename_gen(snapnum1,k_in_filename,n_interp,r,res,center,sink_ID)
+            pickle_filename = pickle_filename_gen(snapnum1,k_in_filename,n_interp,r,res,center,sink_ID,dir_local)
             if outputfolder:
                 pickle_filename=outputfolder+'/'+pickle_filename
             if not all_pickle_exist: #we previously decided to redo these pickle files
@@ -432,7 +487,7 @@ def MakeImage(i):
                 star_center = np.zeros(3)
                 star_v_center = np.zeros(3)
                 if sink_ID:
-                    star_center = np.squeeze(x_star[common_sink_ids==sink_ID,:]-boxsize/2)
+                    star_center = np.squeeze(x_star[common_sink_ids==sink_ID,:]-box_center)
                     star_v_center = np.squeeze(v_star[common_sink_ids==sink_ID,:])
                     if smooth_center:
                         #Try to get more sink data and use it to smooth
@@ -442,7 +497,7 @@ def MakeImage(i):
                                 ids_temp = np.array(load_from_snapshot("ParticleIDs",sink_type,datafolder,snum))
                                 if np.any(ids_temp==sink_ID): #the sink we want to center on is present
                                     xs_temp = length_unit*np.array(load_from_snapshot("Coordinates",sink_type,datafolder,snum))
-                                    star_center_temp = np.squeeze(xs_temp[ids_temp==sink_ID,:]-boxsize/2)
+                                    star_center_temp = np.squeeze(xs_temp[ids_temp==sink_ID,:]-box_center)
                                     star_center_coords.append(star_center_temp)
                                     snap_vals.append(snum)
                         star_center_coords = np.array(star_center_coords); snap_vals = np.array(snap_vals)
@@ -522,7 +577,7 @@ def MakeImage(i):
                     outfile.close()
             else:
                 if (snapnum1==snapnum2) and (k>0): #check if we have interpolating frames for the last snapshot (i.e. if this is a run on only a part of the snapshot we previously ran SinkVis on)
-                    alt_pickle_filename = pickle_filename_gen(snapnum1,k,n_interp,r,res,center,sink_ID)
+                    alt_pickle_filename = pickle_filename_gen(snapnum1,k,n_interp,r,res,center,sink_ID,dir_local)
                     if outputfolder:
                         alt_pickle_filename=outputfolder+'/'+alt_pickle_filename
                     if os.path.exists(alt_pickle_filename):
@@ -606,6 +661,8 @@ def MakeImage(i):
             if sink_ID and (len(sink_IDs_to_center_on)>1):
                 local_name_addition = '_%d'%(sink_ID) + local_name_addition
             file_number = file_numbers[i]
+            if rotating_images:
+                k=i
             filename = "SurfaceDensity%s_%s.%s.png"%(local_name_addition,str(file_number).zfill(4),k)
             frescofilename = "SurfaceDensity_fresco%s_%s.%s.png"%(local_name_addition,str(file_number).zfill(4),k)
             Tfilename = "Temperature%s_%s.%s.png"%(local_name_addition,str(file_number).zfill(4),k)
@@ -625,7 +682,7 @@ def MakeImage(i):
             if (plot_fresco_stars or plot_cool_map_fresco) and numpart_total[sink_type]:
                 #Get stellar PSF map from amuse-fresco
                 import SinkVis_amuse_fresco
-                data_stars_fresco = SinkVis_amuse_fresco.make_amuse_fresco_stars_only(x_star - star_center - boxsize/2 - center ,m_star,np.zeros_like(m_star),L,res=res,vmax=fresco_param,mass_rescale=fresco_mass_rescale)
+                data_stars_fresco = SinkVis_amuse_fresco.make_amuse_fresco_stars_only(x_star - star_center - box_center- center ,m_star,np.zeros_like(m_star),L,res=res,vmax=fresco_param,mass_rescale=fresco_mass_rescale)
             if plot_fresco_stars:
                 #Get surface density map with the color map specified
                 fgas = (np.log10(sigma_gas)-np.log10(limits[0]))/np.log10(limits[1]/limits[0])
@@ -661,8 +718,8 @@ def MakeImage(i):
                 #Add magnetic field
                 if plot_B_map:
                     #from licplot import lic_internal #only import line integral-convolution module if used, can be installed as pip install licplot
-                    xlim = [boxsize/2.0+center[0]+star_center[0]-r,boxsize/2.0+center[0]+star_center[0]+r]
-                    ylim = [boxsize/2.0+center[1]+star_center[1]-r,boxsize/2.0+center[1]+star_center[1]+r]
+                    xlim = [box_center[0]+center[0]+star_center[0]-r,box_center[0]+center[0]+star_center[0]+r]
+                    ylim = [box_center[1]+center[1]+star_center[1]-r,box_center[1]+center[1]+star_center[1]+r]
                     data = plt.imread(fname)
                     fig, ax = plt.subplots(frameon=False)
                     ax.imshow( data, extent=(xlim[0],xlim[1],ylim[0],ylim[1]) )
@@ -683,8 +740,8 @@ def MakeImage(i):
                     if v_res>res:
                         print("v_res too high, resetting to %d"%(res))
                         v_res=res
-                    xlim = [boxsize/2.0+center[0]+star_center[0]-r,boxsize/2.0+center[0]+star_center[0]+r]
-                    ylim = [boxsize/2.0+center[1]+star_center[1]-r,boxsize/2.0+center[1]+star_center[1]+r]
+                    xlim = [box_center[0]+center[0]+star_center[0]-r,box_center[0]+center[0]+star_center[0]+r]
+                    ylim = [box_center[1]+center[1]+star_center[1]-r,box_center[1]+center[1]+star_center[1]+r]
                     data = plt.imread(fname)
                     fig, ax = plt.subplots(frameon=False)
                     ax.imshow( data, extent=(xlim[0],xlim[1],ylim[0],ylim[1]) )
@@ -739,7 +796,7 @@ def MakeImage(i):
                         star_size = gridres*sink_relscale * (np.log10(ms/sink_scale) + 1)
                         star_size = max(1,star_size)
                         p = aggdraw.Brush(StarColor(ms,cmap))
-                        X -= boxsize/2 + center
+                        X -= box_center + center
                         norm_coords = (X[:2]+r)/(2*r)*gridres
                         #Pillow puts the origin in th top left corner, so we need to flip the y axis
                         norm_coords[1] = gridres - norm_coords[1]
@@ -781,12 +838,12 @@ def MakeImage(i):
                 F.close()
 
                 if draw_axes: #add axes and labels to plot
-                    xlim = [boxsize/2.0+center[0]+star_center[0]-r,boxsize/2.0+center[0]+star_center[0]+r]
-                    ylim = [boxsize/2.0+center[1]+star_center[1]-r,boxsize/2.0+center[1]+star_center[1]+r]
+                    xlim = [box_center[0]+center[0]+star_center[0]-r,box_center[0]+center[0]+star_center[0]+r]
+                    ylim = [box_center[1]+center[1]+star_center[1]-r,box_center[1]+center[1]+star_center[1]+r]
                     data = plt.imread(fname)
                     fig, ax = plt.subplots()
                     ax.imshow( data, extent=(xlim[0],xlim[1],ylim[0],ylim[1]) )
-                    axes_dirs = np.roll(['X','Y','Z'], {'z': 0, 'y': 1, 'x': 2}[arguments["--dir"]])
+                    axes_dirs = CoordLabelTransform(dir_local)
                     ax.set_xlabel(axes_dirs[0]+" [pc]")
                     ax.set_ylabel(axes_dirs[1]+" [pc]")
                     fig.set_size_inches(6, 6)
@@ -799,11 +856,11 @@ def MakeMovie():
     #Movie about surface density
     #Find files
     if outputfolder:
-        filenames=natsorted(glob(outputfolder+'/'+'SurfaceDensity'+name_addition+'_????.?.png'))
+        filenames=natsorted(glob(outputfolder+'/'+'SurfaceDensity'+name_addition+'_????.*.png'))
         framefile=outputfolder+'/'+"frames.txt"
         moviefilename=outputfolder+'/'+movie_name
     else:
-        filenames=natsorted(glob('SurfaceDensity'+name_addition+'_????.?.png'))
+        filenames=natsorted(glob('SurfaceDensity'+name_addition+'_????.*.png'))
         framefile="frames.txt"
         moviefilename=movie_name
     #Use ffmpeg to create movie
@@ -818,10 +875,10 @@ def MakeMovie():
     if plot_T_map:
         #Find files
         if outputfolder:
-            filenames=natsorted(glob(outputfolder+'/'+'Temperature'+name_addition+'_????.?.png'))
+            filenames=natsorted(glob(outputfolder+'/'+'Temperature'+name_addition+'_????.*.png'))
             framefile=outputfolder+'/'+"frames_T.txt"
         else:
-            filenames=natsorted(glob('Temperature'+name_addition+'_????.?.png'))
+            filenames=natsorted(glob('Temperature'+name_addition+'_????.*.png'))
             framefile="frames_T.txt"
         #Use ffmpeg to create movie
         f=open(framefile,'w'); f.write('\n'.join(["file '%s'"%os.path.basename(f) for f in filenames])); f.close()
@@ -835,10 +892,10 @@ def MakeMovie():
     if plot_cool_map:
         #Find files
         if outputfolder:
-            filenames=natsorted(glob(outputfolder+'/'+'cool_'+name_addition+'_????.?.png'))
+            filenames=natsorted(glob(outputfolder+'/'+'cool_'+name_addition+'_????.*.png'))
             framefile=outputfolder+'/'+"frames_cool.txt"
         else:
-            filenames=natsorted(glob('cool_'+name_addition+'_????.?.png'))
+            filenames=natsorted(glob('cool_'+name_addition+'_????.*.png'))
             framefile="frames_cool.txt"
         #Use ffmpeg to create movie
         f=open(framefile,'w'); f.write('\n'.join(["file '%s'"%os.path.basename(f) for f in filenames])); f.close()
@@ -852,10 +909,10 @@ def MakeMovie():
     if plot_fresco_stars:
         #Find files
         if outputfolder:
-            filenames=natsorted(glob(outputfolder+'/'+'SurfaceDensity_fresco'+name_addition+'_????.?.png'))
+            filenames=natsorted(glob(outputfolder+'/'+'SurfaceDensity_fresco'+name_addition+'_????.*.png'))
             framefile=outputfolder+'/'+"frames_fresco.txt"
         else:
-            filenames=natsorted(glob('SurfaceDensity_fresco'+name_addition+'_????.?.png'))
+            filenames=natsorted(glob('SurfaceDensity_fresco'+name_addition+'_????.*.png'))
             framefile="frames_fresco.txt"
         #Use ffmpeg to create movie
         f=open(framefile,'w'); f.write('\n'.join(["file '%s'"%os.path.basename(f) for f in filenames])); f.close()
@@ -866,14 +923,13 @@ def MakeMovie():
                 os.remove(i)
         os.remove(framefile)
 
-
 def make_input(files=["snapshot_000.hdf5"], rmax=False, full_box=False, center=[0,0,0],limits=[0,0],Tlimits=[0,0],energy_limits=[0,0],\
                 interp_fac=1, np=1,res=512,v_res=32, keep_only_movie=False, fps=20, movie_name="sink_movie",dir='z',abundance_map=-1,\
                 center_on_star=0, N_high=1, Tcmap="inferno", cmap="viridis",ecmap="viridis", no_movie=True,make_movie=False, make_movie_only=False,outputfolder="output",cool_cmap='same',cmap_fresco='same',plot_cool_map_fresco=False,fresco_param=5e-4,fresco_mass_rescale=[0.0,0.0],\
                 plot_T_map=True,plot_v_map=False,plot_B_map=False,plot_cool_map=False,plot_energy_map=False,calculate_all_maps=False,plot_fresco_stars=False,sink_scale=0.1, sink_relscale=0.0025, sink_type=5, galunits=False,name_addition="",center_on_ID=0,no_pickle=False, no_timestamp=False,slice_height=0,velocity_scale=1000,arrow_color='white',\
                 vector_quiver_map=False, energy_v_scale=1000,sharpen_LIC_map=False,LIC_map_max_alpha=0.5,\
                 no_size_scale=False, center_on_densest=False, draw_axes=False, remake_only=False, rescale_hsml=1.0, smooth_center=False, highlight_wind=1.0,\
-                disable_multigrid=False):
+                disable_multigrid=False, rotating_images=False, rotation_init=0,rotation_max=6.2831853, rotation_steps=4,rotation_axis=[0,0,1]):
     if (not isinstance(files, list)):
         files=[files]
     arguments={
@@ -916,6 +972,11 @@ def make_input(files=["snapshot_000.hdf5"], rmax=False, full_box=False, center=[
         "--make_movie": make_movie,
         "--make_movie_only":make_movie_only,
         "--outputfolder": outputfolder,
+        "--rotating_images": rotating_images,
+        "--rotation_init": rotation_init,
+        "--rotation_max": rotation_max,
+        "--rotation_axis": rotation_axis,
+        "--rotation_steps": rotation_steps,
         "--plot_T_map": plot_T_map,
         "--plot_cool_map": plot_cool_map,
         "--plot_energy_map": plot_energy_map,
@@ -962,9 +1023,7 @@ def main(input):
     else:
         r = boxsize/10
     global name_addition; name_addition = arguments["--name_addition"] if arguments["--name_addition"] else ""
-    global center; center = np.array([float(c) for c in arguments["--c"].split(',')])
-    #Cycle coordinates to match projection
-    center = np.roll(center, {'z': 0, 'y': 1, 'x': 2}[arguments["--dir"]], axis=0)
+    global center_global; center_global = np.array([float(c) for c in arguments["--c"].split(',')])
     global limits; limits = np.array([float(c) for c in arguments["--limits"].split(',')])
     global Tlimits; Tlimits = np.array([float(c) for c in arguments["--Tlimits"].split(',')])
     global energy_limits; energy_limits = np.array([float(c) for c in arguments["--energy_limits"].split(',')])
@@ -1045,6 +1104,13 @@ def main(input):
         smooth_text = '_smoothed%d'%(smooth_center)
     global N_high; N_high = int(arguments["--N_high"])
     global center_on_densest; center_on_densest = 1 if arguments["--center_on_densest"] else 0
+
+    #Rotational parameters
+    global rotating_images; rotating_images = arguments["--rotating_images"]
+    global rotation_init; rotation_init = float(arguments["--rotation_init"])
+    global rotation_steps; rotation_steps = int(arguments["--rotation_steps"])
+    global rotation_rate; rotation_rate = (float(arguments["--rotation_max"])-rotation_init)/rotation_steps
+    global rotation_axis; rotation_axis = np.array([float(c) for c in arguments["--rotation_axis"].split(',')])
     global L; L = r*2
     global length_unit; length_unit = (1e3 if galunits else 1.) #in pc
     global velocity_unit; velocity_unit = (1e3 if galunits else 1.) #in m/s
@@ -1074,6 +1140,12 @@ def main(input):
     if outputfolder:
         if not os.path.exists(outputfolder):
             os.mkdir(outputfolder)
+
+    if rotating_images:
+        last_file = filenames[-1]
+        print("Making rotating images around %s in %d steps"%(last_file,rotation_steps))
+        filenames = [last_file for k in range(rotation_steps)]
+        file_numbers = [int(re.search(namestring+'_\d*', f).group(0).replace(namestring+'_','')) for f in filenames]
 
    #Try to guess surface density limits for multiple snap runs (can't guess within MakeImage routine due to parallelization, also the first image is unlikely to be useful as it is often just the IC) so we will run the last one first, without parallelization
     if ( ( (limits[0]==0) or (Tlimits[0]==0 and plot_T_map) ) and (len(filenames) > 1) ):
