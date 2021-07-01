@@ -13,18 +13,19 @@ from amuse.ext import masc
 from amuse.ext.fresco import make_fresco_image
 import h5py
 
-def make_amuse_fresco_stars_only(x,mstar,age_yr,L,res=512,p=5e-4,mass_rescale=[0,0],filename=None,vmax=None):
+def make_amuse_fresco_stars_only(x,mstar,age_yr,L,res=512,p=5e-4,mass_limits=[0,0],mass_rescale=1.,filename=None,vmax=None):
     number_of_stars = len(mstar)
-    mstar_new = mstar
-    if (mass_rescale[0]!=0.0) or (mass_rescale[1]!=0.0):
-        if (mass_rescale[0]==0.0): mass_rescale[0]=np.min(mstar)
-        if (mass_rescale[1]==0.0): mass_rescale[1]=np.max(mstar)
-        mstar_new = np.clip(mstar,mass_rescale[0],mass_rescale[1])
+
+    if (mass_limits[0]!=0.0) or (mass_limits[1]!=0.0):
+        if (mass_limits[0]==0.0): mass_limits[0]=np.min(mstar)
+        if (mass_limits[1]==0.0): mass_limits[1]=np.max(mstar)
+        mstar_new = np.clip(mstar,mass_limits[0],mass_limits[1])
         #small correction to make them stand apart (e.g. instea of clipping both 100 and 50 msun to 50, we get 50 and 60  so they don't look identical)
         mstar_new = mstar_new + (mstar-mstar_new)*0.1
-        ##rescale masses of star
+        ##limits masses of star
         #logm = np.log10(mstar); logm0 = np.max(logm) + np.min(logm);
-        #mstar_new = 10**( (logm - logm0)/mass_rescale + logm0 )
+        #mstar_new = 10**( (logm - logm0)/mass_limits + logm0 )
+    mstar_new = mstar**mass_rescale
     new_stars = Particles(number_of_stars)
     new_stars.age = age_yr | units.yr
     new_stars.mass = mstar_new  | units.MSun

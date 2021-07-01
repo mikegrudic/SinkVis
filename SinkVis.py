@@ -56,7 +56,8 @@ Options:
     --plot_fresco_stars        Plots surface density map with Hubble-like PSFs for the stars
     --plot_cool_map_fresco     Plots cool map that uses Hubble-like PSFs for the stars
     --fresco_param=<f>         Parameter that sets the vmax parameter of amuse-fresco, the larger the value the more extended stellar PSFs are [default: 0.002]
-    --fresco_mass_rescale=<min,max>  Parameter that determines how masses are rescaled for fresco. Stellar masses are roughly clipped between min and max values, useful to define a max as massive stars are extremely luminous and dominate the image [default: 0,5]
+    --fresco_mass_limits=<min,max>  Parameter that determines how masses are rescaled for fresco. Stellar masses are roughly clipped between min and max values, useful to define a max as massive stars are extremely luminous and dominate the image [default: 0,0]
+    --fresco_mass_rescale=<f>  Rescale masses plugged into Fresco mass-luminosity relation by raising masses to this power [default: 1.]
     --energy_v_scale=<v0>      Scale in the weighting of kinetic energy (w=m*(1+(v/v0)^2)), [default: 1000.0]
     --outputfolder=<name>      Specifies the folder to save the images and movies to
     --name_addition=<name>     Extra string to be put after the name of the ouput files, defaults to empty string
@@ -682,7 +683,7 @@ def MakeImage(i):
             if (plot_fresco_stars or plot_cool_map_fresco) and numpart_total[sink_type]:
                 #Get stellar PSF map from amuse-fresco
                 import SinkVis_amuse_fresco
-                data_stars_fresco = SinkVis_amuse_fresco.make_amuse_fresco_stars_only(x_star - star_center - box_center- center ,m_star,np.zeros_like(m_star),L,res=res,vmax=fresco_param,mass_rescale=fresco_mass_rescale)
+                data_stars_fresco = SinkVis_amuse_fresco.make_amuse_fresco_stars_only(x_star - star_center - box_center- center ,m_star,np.zeros_like(m_star),L,res=res,vmax=fresco_param,mass_rescale=fresco_mass_rescale,mass_limits=fresco_mass_limits)
             if plot_fresco_stars:
                 #Get surface density map with the color map specified
                 fgas = (np.log10(sigma_gas)-np.log10(limits[0]))/np.log10(limits[1]/limits[0])
@@ -925,7 +926,7 @@ def MakeMovie():
 
 def make_input(files=["snapshot_000.hdf5"], rmax=False, full_box=False, center=[0,0,0],limits=[0,0],Tlimits=[0,0],energy_limits=[0,0],\
                 interp_fac=1, np=1,res=512,v_res=32, keep_only_movie=False, fps=20, movie_name="sink_movie",dir='z',abundance_map=-1,\
-                center_on_star=0, N_high=1, Tcmap="inferno", cmap="viridis",ecmap="viridis", no_movie=True,make_movie=False, make_movie_only=False,outputfolder="output",cool_cmap='same',cmap_fresco='same',plot_cool_map_fresco=False,fresco_param=5e-4,fresco_mass_rescale=[0.0,0.0],\
+                center_on_star=0, N_high=1, Tcmap="inferno", cmap="viridis",ecmap="viridis", no_movie=True,make_movie=False, make_movie_only=False,outputfolder="output",cool_cmap='same',cmap_fresco='same',plot_cool_map_fresco=False,fresco_param=5e-4,fresco_mass_limits=[0.0,0.0],fresco_mass_rescale=1.,\
                 plot_T_map=True,plot_v_map=False,plot_B_map=False,plot_cool_map=False,plot_energy_map=False,calculate_all_maps=False,plot_fresco_stars=False,sink_scale=0.1, sink_relscale=0.0025, sink_type=5, galunits=False,name_addition="",center_on_ID=0,no_pickle=False, no_timestamp=False,slice_height=0,velocity_scale=1000,arrow_color='white',\
                 vector_quiver_map=False, energy_v_scale=1000,sharpen_LIC_map=False,LIC_map_max_alpha=0.5,\
                 no_size_scale=False, center_on_densest=False, draw_axes=False, remake_only=False, rescale_hsml=1.0, smooth_center=False, highlight_wind=1.0,\
@@ -987,7 +988,8 @@ def make_input(files=["snapshot_000.hdf5"], rmax=False, full_box=False, center=[
         "--plot_cool_map_fresco": plot_cool_map_fresco,
         "--plot_v_map": plot_v_map,
         "--plot_B_map": plot_B_map,
-        "--fresco_mass_rescale": str(fresco_mass_rescale[0])+","+str(fresco_mass_rescale[1]),
+        "--fresco_mass_limits": str(fresco_mass_limits[0])+","+str(fresco_mass_limits[1]),
+        "--fresco_mass_rescale": fresco_mass_rescale,
         "--fresco_param": fresco_param,
         "--name_addition": name_addition,
         "--no_timestamp": no_timestamp,
@@ -1051,7 +1053,8 @@ def main(input):
     else:
         abundance_text=''
     global fresco_param; fresco_param = float(arguments["--fresco_param"])
-    global fresco_mass_rescale; fresco_mass_rescale = np.array([float(c) for c in arguments["--fresco_mass_rescale"].split(',')])
+    global fresco_mass_limits; fresco_mass_limits = np.array([float(c) for c in arguments["--fresco_mass_limits"].split(',')])
+    global fresco_mass_rescale; fresco_mass_rescale = float(arguments["--fresco_mass_rescale"])
     global keep_only_movie; keep_only_movie = arguments["--keep_only_movie"]
     global sharpen_LIC_map; sharpen_LIC_map = arguments["--sharpen_LIC_map"]
     global LIC_map_max_alpha; LIC_map_max_alpha = float(arguments["--LIC_map_max_alpha"])
@@ -1148,9 +1151,9 @@ def main(input):
         file_numbers = [int(re.search(namestring+'_\d*', f).group(0).replace(namestring+'_','')) for f in filenames]
 
    #Try to guess surface density limits for multiple snap runs (can't guess within MakeImage routine due to parallelization, also the first image is unlikely to be useful as it is often just the IC) so we will run the last one first, without parallelization
-    if ( ( (limits[0]==0) or (Tlimits[0]==0 and plot_T_map) ) and (len(filenames) > 1) ):
-        print("Surface density or temperature limits not set, running final snapshot first to guess the appropriate values.")
-        MakeImage(len(filenames)-1)
+#    if ( ( (limits[0]==0) or (Tlimits[0]==0 and plot_T_map) ) and (len(filenames) > 1) ):
+#        print("Surface density or temperature limits not set, running final snapshot first to guess the appropriate values.")
+#        MakeImage(len(filenames)-1)
     if not make_movie_only:
         if (nproc>1) and (len(filenames) > 1):
             Pool(nproc).map(MakeImage, (f for f in range(len(filenames))), chunksize=1)
