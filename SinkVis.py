@@ -57,7 +57,7 @@ Options:
     --plot_cool_map_fresco     Plots cool map that uses Hubble-like PSFs for the stars
     --fresco_param=<f>         Parameter that sets the vmax parameter of amuse-fresco, the larger the value the more extended stellar PSFs are [default: 0.002]
     --fresco_mass_limits=<min,max>  Parameter that determines how masses are rescaled for fresco. Stellar masses are roughly clipped between min and max values, useful to define a max as massive stars are extremely luminous and dominate the image [default: 0,0]
-    --fresco_mass_rescale=<f>  Rescale masses plugged into Fresco mass-luminosity relation by raising masses to this power [default: 0.3.]
+    --fresco_mass_rescale=<f>  Rescale masses plugged into Fresco mass-luminosity relation by raising masses to this power [default: 0.3]
     --energy_v_scale=<v0>      Scale in the weighting of kinetic energy (w=m*(1+(v/v0)^2)), [default: 1000.0]
     --outputfolder=<name>      Specifies the folder to save the images and movies to
     --name_addition=<name>     Extra string to be put after the name of the ouput files, defaults to empty string
@@ -213,7 +213,7 @@ def blending(data1,data2,method='add_clip',param1=0.5,param2=0.2):
         return np.clip(data1+data2,0,1)
 
 def StarColor(mass_in_msun,cmap):
-    if cmap=='afmhot' or cmap=='inferno' or 'Blues':
+    if cmap=='afmhot' or cmap=='inferno' or cmap=="Blues":
         star_colors = np.array([[255, 100, 60],[120, 200, 150],[75, 80, 255]]) #alternate colors, red-green-blue, easier to see on a bright color map
     else:
         star_colors = np.array([[255, 203, 132],[255, 243, 233],[155, 176, 255]]) #default colors, reddish for small ones, yellow-white for mid sized and blue for large
@@ -221,7 +221,7 @@ def StarColor(mass_in_msun,cmap):
     return (colors[0],colors[1],colors[2])# if len(colors)==1 else colors)
 
 def Star_Edge_Color(cmap):
-    if cmap=='afmhot' or cmap=='inferno' or 'Blues':
+    if cmap=='afmhot' or cmap=='inferno' or cmap=="Blues":
         return 'black'
     else:
         return 'white'
