@@ -99,6 +99,7 @@ from sys import argv
 from load_from_snapshot import load_from_snapshot,check_if_filename_exists
 import re
 import pickle
+import cmasher
 
 wind_ids = np.array([1913298393, 1913298394])
 
