@@ -5,7 +5,8 @@ SinkVis.py <files> ... [options]
 
 Options:
     -h --help                  Show this screen.
-    --rmax=<pc>                Maximum radius of plot window; defaults to box size/10.
+    --rmax=<pc>                Maximum radius of plot window; defaults to box size/10. Note that this is FOV/2 in radians if FOV_plot is enabled
+    --FOV_plot                 Flag, if enables an image is created for an observer at the coordinates defined by c, looking in direction dir, with FOV of 2*rmax
     --dir=<x,y,z>              Coordinate direction to orient the image along - x, y, or z. It also accepts vector values [default: z]
     --full_box                 Sets the plot to the entire box, overrides rmax
     --c=<cx,cy,cz>             Coordinates of plot window center relative to box center [default: 0.0,0.0,0.0]
@@ -108,7 +109,7 @@ def pickle_filename_gen(snapnum,k,n_interp,r,res,center,sink_ID,dir_local):
         dir_local_str=dir_local
     else:
         dir_local_str="%g,%g,%g"%(dir_local[0],dir_local[1],dir_local[2])
-    return "Sinkvis_snap%d_%d_%d_r%g_res%d_c%g_%g_%g_0_%d_%s"%(snapnum,k,n_interp,r,res,center[0],center[1],center[2],sink_ID,dir_local_str)+abundance_text+rescale_text+slice_text+smooth_text+energy_v_scale_text+".pickle"
+    return "Sinkvis_snap%d_%d_%d_r%g_res%d_c%g_%g_%g_0_%d_%s"%(snapnum,k,n_interp,r,res,center[0],center[1],center[2],sink_ID,dir_local_str)+abundance_text+rescale_text+slice_text+smooth_text+energy_v_scale_text+FOV_plot_text+".pickle"
 
 def find_sink_in_densest_gas(snapnum):
     #Find the N_high sinks in snapshot near the densest gas and return their ID, otherwise return 0
@@ -197,6 +198,15 @@ def CoordLabelTransform(dir_local):
 
 def sigmoid(x,x0,scale):
     return 1.0/(1.0 + np.exp(-(x-x0)/scale))
+    
+def cart_to_spherical(xyz): #efficient version, taken from stackoverflow
+    ptsnew = np.hstack((xyz, np.zeros(xyz.shape)))
+    xy = xyz[:,0]**2 + xyz[:,1]**2
+    ptsnew[:,3] = np.sqrt(xy + xyz[:,2]**2)
+    ptsnew[:,4] = np.arctan2(np.sqrt(xy), xyz[:,2]) # for elevation angle defined from Z-axis down
+    ptsnew[:,5] = np.arctan2(xyz[:,1], xyz[:,0])
+    return ptsnew
+
 
 def blending(data1,data2,method='add_clip',param1=0.5,param2=0.2):
     #Blends two images with different methods. Input is assumed in the form of (N,N,3) RGB images
@@ -533,43 +543,55 @@ def MakeImage(i):
                     u = (10**logu)/1.01e4 #converting to K
 
                     h = float(k)/n_interp * h2 + (n_interp-float(k))/n_interp * h1
+                    
+                    normalization = np.ones_like(m) #normalization, of projected values, unit by default
+                    if FOV_plot:
+                        #Find coordinates in spherical system, where 0,0 is pointing in the original Z direction
+                        x_sph = cart_to_spherical(np.roll(x,2,axis=1))[:,3:] 
+                        dist = x_sph[:,0]  # distance of cells from observer
+                        x = x_sph[:,1:] - np.pi/2 # setting up latitude and longitude, setting 0,0 to original z axis
+                        h = 2*np.arctan(h/dist/2.0)   #h_rad = h/dist 
+                        #To renormalize projected variables. This is needed to get value/pc^2 instead of value/radian^2
+                        normalization = 1.0/(dist**2)
+                        x_sph = 0; dist=0;#to save some memory
+                    
                     h = np.clip(h,L/res, 1e100)
-
+                    
                     if abundance_map>-1:
                         abundance = float(k)/n_interp * abundance2 + (n_interp-float(k))/n_interp * abundance1
-                        sigma_gas = GridSurfaceDensity_func(m*abundance, x, h, star_center*0, L, res=res).T
+                        sigma_gas = GridSurfaceDensity_func(m*abundance*normalization, x, h, star_center*0, L, res=res).T
                     else:
-                        sigma_gas = GridSurfaceDensity_func(m, x, h, star_center*0, L, res=res).T
+                        sigma_gas = GridSurfaceDensity_func(m*normalization, x, h, star_center*0, L, res=res).T
                     dict_to_pickle['sigma_gas'] = sigma_gas #store gas surface density
                     if plot_T_map or calculate_all_maps:
                         #Tmap_gas = GridAverage(u, x, h,star_center*0, L, res=res).T #should be similar to mass weighted average if particle masses roughly constant, also converting to K
                         #logTmap_gas = GridAverage(np.log10(u), x, h,star_center*0, L, res=res).T #average of log T so that it is not completely dominated by the warm ISM
-                        weight_map = GridSurfaceDensity(np.ones(len(u)), x, h,star_center*0, L, res=res) #sum of weights
-                        Tmap_gas = (GridSurfaceDensity(u, x, h,star_center*0, L, res=res)/weight_map).T #should be similar to mass weighted average if particle masses roughly constant, also converting to K
+                        weight_map = GridSurfaceDensity(np.ones(len(u))*normalization, x, h,star_center*0, L, res=res) #sum of weights
+                        Tmap_gas = (GridSurfaceDensity(u*normalization, x, h,star_center*0, L, res=res)/weight_map).T #should be similar to mass weighted average if particle masses roughly constant, also converting to K
                         dict_to_pickle['Tmap_gas'] = Tmap_gas #store gas temperature
-                        logTmap_gas = (GridSurfaceDensity(np.log10(u), x, h,star_center*0, L, res=res)/weight_map).T #average of log T so that it is not completely dominated by the warm ISM
+                        logTmap_gas = (GridSurfaceDensity(np.log10(u)*normalization, x, h,star_center*0, L, res=res)/weight_map).T #average of log T so that it is not completely dominated by the warm ISM
                         dict_to_pickle['logTmap_gas'] = logTmap_gas #store gas temperature
                     if plot_v_map or plot_B_map or calculate_all_maps:
-                        weight_map_cells = GridSurfaceDensity(np.ones(len(v[:,0])), x, h,star_center*0, L, res=res) #sum of weights, this will be a cell-number (i.e. mass) weighted average
+                        weight_map_cells = GridSurfaceDensity(np.ones(len(v[:,0]))*normalization, x, h,star_center*0, L, res=res) #sum of weights, this will be a cell-number (i.e. mass) weighted average
                         dict_to_pickle['weight_map_cells'] = weight_map_cells
                     if plot_v_map or calculate_all_maps:
                         v_field = np.zeros( (res,res,2) )
-                        v_field[:,:,0] = (GridSurfaceDensity(v[:,0], x, h,star_center*0, L, res=res)/weight_map_cells).T
-                        v_field[:,:,1] = (GridSurfaceDensity(v[:,1], x, h,star_center*0, L, res=res)/weight_map_cells).T
+                        v_field[:,:,0] = (GridSurfaceDensity(v[:,0]*normalization, x, h,star_center*0, L, res=res)/weight_map_cells).T
+                        v_field[:,:,1] = (GridSurfaceDensity(v[:,1]*normalization, x, h,star_center*0, L, res=res)/weight_map_cells).T
                         dict_to_pickle['v_field'] = v_field #store gas velocity
                     if plot_B_map or calculate_all_maps:
                         B_field = np.zeros( (res,res,2) )
-                        B_field[:,:,0] = (GridSurfaceDensity(B[:,0], x, h,star_center*0, L, res=res)/weight_map_cells).T
-                        B_field[:,:,1] = (GridSurfaceDensity(B[:,1], x, h,star_center*0, L, res=res)/weight_map_cells).T
+                        B_field[:,:,0] = (GridSurfaceDensity(B[:,0]*normalization, x, h,star_center*0, L, res=res)/weight_map_cells).T
+                        B_field[:,:,1] = (GridSurfaceDensity(B[:,1]*normalization, x, h,star_center*0, L, res=res)/weight_map_cells).T
                         dict_to_pickle['B_field'] = B_field #store magnetic field
                     if plot_cool_map or calculate_all_maps:
-                        sigma_1D = GridSurfaceDensity_func(m * v[:,2]**2, x, h,star_center*0, L, res=res).T/sigma_gas
-                        v_avg = GridSurfaceDensity_func(m * v[:,2], x, h,star_center*0, L, res=res).T/sigma_gas
+                        sigma_1D = GridSurfaceDensity_func(m * v[:,2]**2 * normalization, x, h,star_center*0, L, res=res).T/sigma_gas
+                        v_avg = GridSurfaceDensity_func(m * v[:,2] * normalization, x, h,star_center*0, L, res=res).T/sigma_gas
                         sigma_1D = np.sqrt(sigma_1D - v_avg**2) / 1e3
                         dict_to_pickle['sigma_1D'] = sigma_1D #store gas velocity dispersion
                     if plot_energy_map or calculate_all_maps:
                         kin_energy_weighted = m*(1.0+np.sum(v**2,axis=1)/(energy_v_scale**2))
-                        energy_map_gas = GridSurfaceDensity(kin_energy_weighted, x, h, star_center*0, L, res=res).T
+                        energy_map_gas = GridSurfaceDensity(kin_energy_weighted*normalization, x, h, star_center*0, L, res=res).T
                         dict_to_pickle['energy_map_gas'] = energy_map_gas #store gas kinetic energy map
                 #Save data
                 if not no_pickle:
@@ -681,10 +703,15 @@ def MakeImage(i):
             plt.imsave(filename, data) #f.split("snapshot_")[1].split(".hdf5")[0], map)
             print(filename)
             flist = [filename]
+            if numpart_total[sink_type]:
+                x_star_centered = x_star - star_center - box_center- center
+                if FOV_plot:
+                    #Transform star coordinates to the same spherical system as the gas is
+                    x_star_centered = cart_to_spherical(np.roll(x_star_centered,2,axis=1))[:,4:] - np.pi/2 
             if (plot_fresco_stars or plot_cool_map_fresco) and numpart_total[sink_type]:
                 #Get stellar PSF map from amuse-fresco
                 import SinkVis_amuse_fresco
-                data_stars_fresco = SinkVis_amuse_fresco.make_amuse_fresco_stars_only(x_star - star_center - box_center- center ,m_star,np.zeros_like(m_star),L,res=res,vmax=fresco_param,mass_rescale=fresco_mass_rescale,mass_limits=fresco_mass_limits)
+                data_stars_fresco = SinkVis_amuse_fresco.make_amuse_fresco_stars_only(x_star_centered,m_star,np.zeros_like(m_star),L,res=res,vmax=fresco_param,mass_rescale=fresco_mass_rescale,mass_limits=fresco_mass_limits)
             if plot_fresco_stars:
                 #Get surface density map with the color map specified
                 fgas = (np.log10(sigma_gas)-np.log10(limits[0]))/np.log10(limits[1]/limits[0])
@@ -719,6 +746,9 @@ def MakeImage(i):
 
                 #Add magnetic field
                 if plot_B_map:
+                    if FOV_plot:
+                        print("Warning! Magnetic field overplotting not set up for FOV plots!")
+                        return
                     #from licplot import lic_internal #only import line integral-convolution module if used, can be installed as pip install licplot
                     xlim = [box_center[0]+center[0]+star_center[0]-r,box_center[0]+center[0]+star_center[0]+r]
                     ylim = [box_center[1]+center[1]+star_center[1]-r,box_center[1]+center[1]+star_center[1]+r]
@@ -738,6 +768,9 @@ def MakeImage(i):
 
                 #Add velocity field
                 if plot_v_map:
+                    if FOV_plot:
+                        print("Warning! Velocity field overplotting not set up for FOV plots!")
+                        return
                     if not vector_quiver_map: v_res=res # this removes the user setting, but it should not really matter for field lines
                     if v_res>res:
                         print("v_res too high, resetting to %d"%(res))
@@ -792,13 +825,12 @@ def MakeImage(i):
                 if numpart_total[sink_type] and (not ('SurfaceDensity_fresco' in fname)) and (not (plot_cool_map_fresco and ('cool_' in fname)) ):
                     d = aggdraw.Draw(F)
                     pen = aggdraw.Pen(Star_Edge_Color(cmap),1) #gridres/800
-                    for j in np.arange(len(x_star))[m_star>0]:
-                        X = x_star[j] - star_center
+                    for j in np.arange(len(x_star_centered))[m_star>0]:
+                        X = x_star_centered[j]
                         ms = m_star[j]
                         star_size = gridres*sink_relscale * (np.log10(ms/sink_scale) + 1)
                         star_size = max(1,star_size)
                         p = aggdraw.Brush(StarColor(ms,cmap))
-                        X -= box_center + center
                         norm_coords = (X[:2]+r)/(2*r)*gridres
                         #Pillow puts the origin in th top left corner, so we need to flip the y axis
                         norm_coords[1] = gridres - norm_coords[1]
@@ -812,7 +844,7 @@ def MakeImage(i):
                 F = Image.open(fname)
                 gridres = F.size[0]
                 draw = ImageDraw.Draw(F)
-                if not no_size_scale:
+                if not (no_size_scale or FOV_plot):
                     if (r>1000):
                         scale_kpc=10**np.round(np.log10(r*0.5/1000))
                         size_scale_text="%3.3gkpc"%(scale_kpc)
@@ -925,7 +957,7 @@ def MakeMovie():
                 os.remove(i)
         os.remove(framefile)
 
-def make_input(files=["snapshot_000.hdf5"], rmax=False, full_box=False, center=[0,0,0],limits=[0,0],Tlimits=[0,0],energy_limits=[0,0],\
+def make_input(files=["snapshot_000.hdf5"], rmax=False, full_box=False, center=[0,0,0],limits=[0,0],Tlimits=[0,0],energy_limits=[0,0],FOV_plot=False,\
                 interp_fac=1, np=1,res=512,v_res=32, keep_only_movie=False, fps=20, movie_name="sink_movie",dir='z',abundance_map=-1,\
                 center_on_star=0, N_high=1, Tcmap="inferno", cmap="viridis",ecmap="viridis", no_movie=True,make_movie=False, make_movie_only=False,outputfolder="output",cool_cmap='same',cmap_fresco='same',plot_cool_map_fresco=False,fresco_param=0.002,fresco_mass_limits=[0.0,0.0],fresco_mass_rescale=0.3,\
                 plot_T_map=True,plot_v_map=False,plot_B_map=False,plot_cool_map=False,plot_energy_map=False,calculate_all_maps=False,plot_fresco_stars=False,sink_scale=0.1, sink_relscale=0.0025, sink_type=5, galunits=False,name_addition="",center_on_ID=0,no_pickle=False, no_timestamp=False,slice_height=0,velocity_scale=1000,arrow_color='white',\
@@ -938,6 +970,7 @@ def make_input(files=["snapshot_000.hdf5"], rmax=False, full_box=False, center=[
         "<files>": files,
         "--rmax": rmax,
         "--full_box": full_box,
+        "--FOV_plot": FOV_plot,
         "--c": str(center[0])+","+str(center[1])+","+str(center[2]),
         "--dir": dir,
         "--limits": str(limits[0])+","+str(limits[1]),
@@ -1016,6 +1049,10 @@ def main(input):
     global datafolder; datafolder=(filenames[0].split(namestring+"_")[0])
     if not len(datafolder):
         datafolder="./"
+    global FOV_plot; FOV_plot = arguments["--FOV_plot"]
+    global FOV_plot_text; FOV_plot_text=''
+    if FOV_plot:
+        FOV_plot_text = '_FOV'
     global boxsize; boxsize=load_from_snapshot("BoxSize",0,datafolder,file_numbers[0])
     full_box_flag = arguments["--full_box"]
     global r;
