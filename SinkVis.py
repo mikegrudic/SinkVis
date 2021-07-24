@@ -707,7 +707,8 @@ def MakeImage(i):
                 x_star_centered = x_star - star_center - box_center- center
                 if FOV_plot:
                     #Transform star coordinates to the same spherical system as the gas is
-                    x_star_centered = cart_to_spherical(np.roll(x_star_centered,2,axis=1))[:,4:] - np.pi/2 
+                    x_star_centered = np.roll(cart_to_spherical(np.roll(x_star_centered,2,axis=1))[:,3:],2,axis=1) #also roll so that distance is the third coordinate that we ignore
+                    x_star_centered[:,:2] -= np.pi/2 
             if (plot_fresco_stars or plot_cool_map_fresco) and numpart_total[sink_type]:
                 #Get stellar PSF map from amuse-fresco
                 import SinkVis_amuse_fresco
