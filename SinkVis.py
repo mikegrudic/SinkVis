@@ -9,6 +9,7 @@ Options:
     --FOV_plot                 Flag, if enables an image is created for an observer at the coordinates defined by c, looking in direction dir, with FOV of 2*rmax, projection options 'spherical', 'frustum', the default is 'frustum'
     --dir=<x,y,z>              Coordinate direction to orient the image along - x, y, or z. It also accepts vector values [default: z]
     --full_box                 Sets the plot to the entire box, overrides rmax
+    --target_time=<f>          If set to nonzero, SinkVis will try to make a single image by interpolating from the available files [default: 0.0] 
     --c=<cx,cy,cz>             Coordinates of plot window center relative to box center [default: 0.0,0.0,0.0]
     --limits=<min,max>         Dynamic range of surface density colormap [default: 0,0]
     --Tlimits=<min,max>        Dynamic range of temperature colormap in K [default: 0,0]
@@ -109,7 +110,7 @@ def pickle_filename_gen(snapnum,k,n_interp,r,res,center,sink_ID,dir_local):
         dir_local_str=dir_local
     else:
         dir_local_str="%g,%g,%g"%(dir_local[0],dir_local[1],dir_local[2])
-    return "Sinkvis_snap%d_%d_%d_r%g_res%d_c%g_%g_%g_0_%d_%s"%(snapnum,k,n_interp,r,res,center[0],center[1],center[2],sink_ID,dir_local_str)+abundance_text+rescale_text+slice_text+smooth_text+energy_v_scale_text+FOV_plot_text+".pickle"
+    return "Sinkvis_snap%d_%d_%d_r%g_res%d_c%g_%g_%g_0_%d_%s"%(snapnum,k,n_interp,r,res,center[0],center[1],center[2],sink_ID,dir_local_str)+abundance_text+rescale_text+slice_text+smooth_text+energy_v_scale_text+FOV_plot_text+target_time_text+".pickle"
 
 def find_sink_in_densest_gas(snapnum):
     #Find the N_high sinks in snapshot near the densest gas and return their ID, otherwise return 0
@@ -301,7 +302,9 @@ def MakeImage(i):
         transform_mtx = CoordTransformMtx(rotation_axis)
         inv_transform_mtx = np.linalg.inv(transform_mtx)
         #Calculate rotation for current images
-        theta = rotation_init + i * rotation_rate
+        theta = rotation_init
+        if not target_time:
+            theta += i * rotation_rate
         rotation_mtx = np.array(((np.cos(theta), np.sin(theta),0), (-np.sin(theta), np.cos(theta),0), (0,0,1)))
         dir_local = transform_mtx.transpose() @ (rotation_mtx @ (transform_mtx @ dir_init))
     #Deal with centering
@@ -309,7 +312,7 @@ def MakeImage(i):
     box_center = CoordTransform(np.array([boxsize,boxsize,boxsize])/2,dir_local)
 
     snapnum1=file_numbers[i]
-    snapnum2=(file_numbers[min(i+1,len(filenames)-1)] if n_interp>1 else snapnum1)
+    snapnum2=(file_numbers[min(i+1,len(filenames)-1)] if ((n_interp>1) or target_time) else snapnum1)
     sink_IDs_to_center_on = np.array([center_on_ID]) #default, will not center
     if center_on_densest:
         #Find the IDs of the sinks with the densest gas nearby
@@ -485,16 +488,23 @@ def MakeImage(i):
             if not all_pickle_exist: #we previously decided to redo these pickle files
                 dict_to_pickle = dict() #we will store the data we want to pickle in a dictionary
                 dict_to_pickle['time'] = time; dict_to_pickle['numpart_total'] = numpart_total;
+                if target_time:
+                    #we need to interpolate between snapnum1 and snapnum2 to get the target time
+                    time1 = load_from_snapshot("Time",0,datafolder,snapnum1)
+                    time2 = load_from_snapshot("Time",0,datafolder,snapnum2)
+                    interp_step = (target_time-time1)/(time2-time1)*n_interp #we set n_interp=1, so it should not matter, but more general this way
+                else:
+                    interp_step = float(k)
                 if numpart_total[sink_type]:
-                    x_star = float(k)/n_interp * x2s + (n_interp-float(k))/n_interp * x1s
-                    v_star = float(k)/n_interp * v2s + (n_interp-float(k))/n_interp * v1s
-                    m_star = float(k)/n_interp * m2s + (n_interp-float(k))/n_interp * m1s
+                    x_star = interp_step/n_interp * x2s + (n_interp-interp_step)/n_interp * x1s
+                    v_star = interp_step/n_interp * v2s + (n_interp-interp_step)/n_interp * v1s
+                    m_star = interp_step/n_interp * m2s + (n_interp-interp_step)/n_interp * m1s
                     jump_ind1 = (x2s - x1s) > (boxsize/2) #assuming no particle travels more than half of the the box in a single snapshot
                     jump_ind2 = (x1s - x2s) > (boxsize/2)
                     if np.any(jump_ind1):
-                        x_star[jump_ind1] = (float(k)/n_interp * (x2s[jump_ind1]-boxsize) + (n_interp-float(k))/n_interp * x1s[jump_ind1])%boxsize
+                        x_star[jump_ind1] = (interp_step/n_interp * (x2s[jump_ind1]-boxsize) + (n_interp-interp_step)/n_interp * x1s[jump_ind1])%boxsize
                     if np.any(jump_ind2):
-                        x_star[jump_ind2] = (float(k)/n_interp * x2s[jump_ind2] + (n_interp-float(k))/n_interp * (x1s[jump_ind2]-boxsize))%boxsize
+                        x_star[jump_ind2] = (interp_step/n_interp * x2s[jump_ind2] + (n_interp-interp_step)/n_interp * (x1s[jump_ind2]-boxsize))%boxsize
                     dict_to_pickle['x_star'] = x_star; dict_to_pickle['v_star'] = v_star; dict_to_pickle['m_star'] = m_star #store data to save
                 star_center = np.zeros(3)
                 star_v_center = np.zeros(3)
@@ -519,30 +529,30 @@ def MakeImage(i):
                         zfit = np.poly1d(np.polyfit(snap_vals,star_center_coords[:,2],1))
                         #Let's estimate the new center coordinate
                         star_center_old = star_center+0
-                        star_center[0] = xfit(snapnum1+float(k)/n_interp)
-                        star_center[1] = yfit(snapnum1+float(k)/n_interp)
-                        star_center[2] = zfit(snapnum1+float(k)/n_interp)
+                        star_center[0] = xfit(snapnum1+interp_step/n_interp)
+                        star_center[1] = yfit(snapnum1+interp_step/n_interp)
+                        star_center[2] = zfit(snapnum1+interp_step/n_interp)
                         print("Smoothing changed centering from %g %g %g to %g %g %g"%(star_center_old[0],star_center_old[1],star_center_old[2],star_center[0],star_center[1],star_center[2]))
                 dict_to_pickle['star_center'] = star_center
                 if numpart_total[0]:
-                    x = float(k)/n_interp * x2 + (n_interp-float(k))/n_interp * x1
+                    x = interp_step/n_interp * x2 + (n_interp-interp_step)/n_interp * x1
                     #correct for periodic box
                     jump_ind1 = (x2 - x1) > (boxsize/2) #assuming no particle travels more than half of the the box in a single snapshot
                     jump_ind2 = (x1 - x2) > (boxsize/2)
                     if np.any(jump_ind1):
-                        x[jump_ind1] = (float(k)/n_interp * (x2[jump_ind1]-boxsize) + (n_interp-float(k))/n_interp * x1[jump_ind1])%boxsize
+                        x[jump_ind1] = (interp_step/n_interp * (x2[jump_ind1]-boxsize) + (n_interp-interp_step)/n_interp * x1[jump_ind1])%boxsize
                     if np.any(jump_ind2):
-                        x[jump_ind2] = (float(k)/n_interp * x2[jump_ind2] + (n_interp-float(k))/n_interp * (x1[jump_ind2]-boxsize))%boxsize
+                        x[jump_ind2] = (interp_step/n_interp * x2[jump_ind2] + (n_interp-interp_step)/n_interp * (x1[jump_ind2]-boxsize))%boxsize
                     x -= star_center
-                    v = float(k)/n_interp * v2 + (n_interp-float(k))/n_interp * v1
+                    v = interp_step/n_interp * v2 + (n_interp-interp_step)/n_interp * v1
                     v -= star_v_center
                     if plot_B_map or calculate_all_maps:
-                        B = float(k)/n_interp * B2 + (n_interp-float(k))/n_interp * B1
+                        B = interp_step/n_interp * B2 + (n_interp-interp_step)/n_interp * B1
 
-                    logu = float(k)/n_interp * np.log10(u2) + (n_interp-float(k))/n_interp * np.log10(u1)
+                    logu = interp_step/n_interp * np.log10(u2) + (n_interp-interp_step)/n_interp * np.log10(u1)
                     u = (10**logu)/1.01e4 #converting to K
 
-                    h = float(k)/n_interp * h2 + (n_interp-float(k))/n_interp * h1
+                    h = interp_step/n_interp * h2 + (n_interp-interp_step)/n_interp * h1
                     
                     normalization = np.ones_like(m) #normalization, of projected values, unit by default
                     if FOV_plot:
@@ -565,7 +575,7 @@ def MakeImage(i):
                     h = np.clip(h,L/res, 1e100)
                     
                     if abundance_map>-1:
-                        abundance = float(k)/n_interp * abundance2 + (n_interp-float(k))/n_interp * abundance1
+                        abundance = interp_step/n_interp * abundance2 + (n_interp-interp_step)/n_interp * abundance1
                         sigma_gas = GridSurfaceDensity_func(m*abundance*normalization, x, h, star_center*0, L, res=res).T
                     else:
                         sigma_gas = GridSurfaceDensity_func(m*normalization, x, h, star_center*0, L, res=res).T
@@ -692,7 +702,7 @@ def MakeImage(i):
             if sink_ID and (len(sink_IDs_to_center_on)>1):
                 local_name_addition = '_%d'%(sink_ID) + local_name_addition
             file_number = file_numbers[i]
-            if rotating_images:
+            if rotating_images and (not target_time):
                 k=i
             filename = "SurfaceDensity%s_%s.%s.png"%(local_name_addition,str(file_number).zfill(4),k)
             frescofilename = "SurfaceDensity_fresco%s_%s.%s.png"%(local_name_addition,str(file_number).zfill(4),k)
@@ -972,7 +982,7 @@ def MakeMovie():
                 os.remove(i)
         os.remove(framefile)
 
-def make_input(files=["snapshot_000.hdf5"], rmax=False, full_box=False, center=[0,0,0],limits=[0,0],Tlimits=[0,0],energy_limits=[0,0],FOV_plot=False,\
+def make_input(files=["snapshot_000.hdf5"], rmax=False, full_box=False, target_time=0, center=[0,0,0],limits=[0,0],Tlimits=[0,0],energy_limits=[0,0],FOV_plot=False,\
                 interp_fac=1, np=1,res=512,v_res=32, keep_only_movie=False, fps=20, movie_name="sink_movie",dir='z',abundance_map=-1,\
                 center_on_star=0, N_high=1, Tcmap="inferno", cmap="viridis",ecmap="viridis", no_movie=True,make_movie=False, make_movie_only=False,outputfolder="output",cool_cmap='same',cmap_fresco='same',plot_cool_map_fresco=False,fresco_param=0.002,fresco_mass_limits=[0.0,0.0],fresco_mass_rescale=0.3,\
                 plot_T_map=True,plot_v_map=False,plot_B_map=False,plot_cool_map=False,plot_energy_map=False,calculate_all_maps=False,plot_fresco_stars=False,sink_scale=0.1, sink_relscale=0.0025, sink_type=5, galunits=False,name_addition="",center_on_ID=0,no_pickle=False, no_timestamp=False,slice_height=0,velocity_scale=1000,arrow_color='white',\
@@ -987,6 +997,7 @@ def make_input(files=["snapshot_000.hdf5"], rmax=False, full_box=False, center=[
         "--full_box": full_box,
         "--FOV_plot": FOV_plot,
         "--c": str(center[0])+","+str(center[1])+","+str(center[2]),
+        "--target_time": target_time,
         "--dir": dir,
         "--limits": str(limits[0])+","+str(limits[1]),
         "--Tlimits": str(Tlimits[0])+","+str(Tlimits[1]),
@@ -1060,10 +1071,29 @@ def main(input):
         namestring="snapdir"
     else:
         namestring="snapshot"
+    nproc = int(arguments["--np"])
+    global n_interp; n_interp = int(arguments["--interp_fac"])
     global file_numbers; file_numbers = [int(re.search(namestring+'_\d*', f).group(0).replace(namestring+'_','')) for f in filenames]
     global datafolder; datafolder=(filenames[0].split(namestring+"_")[0])
     if not len(datafolder):
         datafolder="./"
+    global target_time; target_time = np.float64(arguments["--target_time"])
+    global target_time_text; target_time_text=''
+    if target_time:
+        target_time_text = '_t%g'%(target_time)
+        #Let's find which snapshot do we need for the target time
+        snap_times = np.array( [load_from_snapshot("Time",0,datafolder,snapnum) for snapnum in file_numbers], dtype=np.float64 )
+        if np.max(snap_times)<=target_time:
+            print("Target time of %g larger than max snapshot time of %g"%(target_time,np.max(snap_times)))
+            return
+        elif np.min(snap_times)>=target_time:
+            print("Target time of %g smaller than min snapshot time of %g"%(target_time,np.min(snap_times)))
+            return
+        else:
+            target_fileindex = np.argmax(snap_times>target_time)-1
+            print("Target time of %g = %g Myr, using snapshots %d and %d to interpolate"%(target_time,target_time*979,file_numbers[target_fileindex],file_numbers[target_fileindex+1]))
+            nproc = 1 #we can try implementing a multiprocessed version later
+            n_interp = 1 #Easier to implement this way
     global FOV_plot; FOV_plot = arguments["--FOV_plot"]
     global FOV_plot_text; FOV_plot_text=''
     if FOV_plot:
@@ -1090,8 +1120,6 @@ def main(input):
         logTlimits[:] = np.log10(Tlimits[:])
     global res; res = int(arguments["--res"])
     global v_res; v_res = int(arguments["--v_res"])
-    nproc = int(arguments["--np"])
-    global n_interp; n_interp = int(arguments["--interp_fac"])
     global cmap; cmap = arguments["--cmap"]
     global cool_cmap; cool_cmap = arguments["--cool_cmap"]
     if cool_cmap=='same':
@@ -1200,10 +1228,11 @@ def main(input):
             os.mkdir(outputfolder)
 
     if rotating_images:
-        last_file = filenames[-1]
-        print("Making rotating images around %s in %d steps"%(last_file,rotation_steps))
-        filenames = [last_file for k in range(rotation_steps)]
-        file_numbers = [int(re.search(namestring+'_\d*', f).group(0).replace(namestring+'_','')) for f in filenames]
+        if not target_time:
+            rotated_file = filenames[-1]
+            print("Making rotating images around %s in %d steps"%(rotated_file,rotation_steps))
+            filenames = [rotated_file for k in range(rotation_steps)]
+            file_numbers = [int(re.search(namestring+'_\d*', f).group(0).replace(namestring+'_','')) for f in filenames]
 
    #Try to guess surface density limits for multiple snap runs (can't guess within MakeImage routine due to parallelization, also the first image is unlikely to be useful as it is often just the IC) so we will run the last one first, without parallelization
 #    if ( ( (limits[0]==0) or (Tlimits[0]==0 and plot_T_map) ) and (len(filenames) > 1) ):
@@ -1213,7 +1242,10 @@ def main(input):
         if (nproc>1) and (len(filenames) > 1):
             Pool(nproc).map(MakeImage, (f for f in range(len(filenames))), chunksize=1)
         else:
-            [MakeImage(i) for i in range(len(filenames))]
+            if target_time:
+                MakeImage(target_fileindex)
+            else:
+                [MakeImage(i) for i in range(len(filenames))]
     if (len(filenames) > 1 and (not no_movie) ):
         MakeMovie() # only make movie if plotting multiple files
 
