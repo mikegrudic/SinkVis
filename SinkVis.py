@@ -6,7 +6,7 @@ SinkVis.py <files> ... [options]
 Options:
     -h --help                  Show this screen.
     --rmax=<pc>                Maximum radius of plot window; defaults to box size/10. Note that this is FOV/2 in radians if FOV_plot is enabled
-    --FOV_plot                 Flag, if enables an image is created for an observer at the coordinates defined by c, looking in direction dir, with FOV of 2*rmax
+    --FOV_plot                 Flag, if enables an image is created for an observer at the coordinates defined by c, looking in direction dir, with FOV of 2*rmax, projection options 'spherical', 'frustum', the default is 'frustum'
     --dir=<x,y,z>              Coordinate direction to orient the image along - x, y, or z. It also accepts vector values [default: z]
     --full_box                 Sets the plot to the entire box, overrides rmax
     --c=<cx,cy,cz>             Coordinates of plot window center relative to box center [default: 0.0,0.0,0.0]
@@ -551,6 +551,13 @@ def MakeImage(i):
                         dist = x_sph[:,0]  # distance of cells from observer
                         x = x_sph[:,1:] - np.pi/2 # setting up latitude and longitude, setting 0,0 to original z axis
                         h = 2*np.arctan(h/dist/2.0)   #h_rad = h/dist 
+                        #If we prefer the frustum
+                        if FOV_plot=='frustum':
+                            d = L/2/np.tan(L/2)
+                            behind_ind = (x[:,0]>np.pi/2) | (x[:,0]<-np.pi/2) | (x[:,1]>np.pi/2) | (x[:,1]<-np.pi/2) #find things "behind" the camera
+                            x[:,0] = np.tan(x[:,0])*d
+                            x[:,1] = np.tan(x[:,1])*d
+                            x[behind_ind,:] = 1e100 #these should not be mapped
                         #To renormalize projected variables. This is needed to get value/pc^2 instead of value/radian^2
                         normalization = 1.0/(dist**2)
                         x_sph = 0; dist=0;#to save some memory
@@ -709,10 +716,16 @@ def MakeImage(i):
                     #Transform star coordinates to the same spherical system as the gas is
                     x_star_centered = np.roll(cart_to_spherical(np.roll(x_star_centered,2,axis=1))[:,3:],2,axis=1) #also roll so that distance is the third coordinate that we ignore
                     x_star_centered[:,:2] -= np.pi/2 
-            if (plot_fresco_stars or plot_cool_map_fresco) and numpart_total[sink_type]:
-                #Get stellar PSF map from amuse-fresco
-                import SinkVis_amuse_fresco
-                data_stars_fresco = SinkVis_amuse_fresco.make_amuse_fresco_stars_only(x_star_centered,m_star,np.zeros_like(m_star),L,res=res,vmax=fresco_param,mass_rescale=fresco_mass_rescale,mass_limits=fresco_mass_limits)
+                    if FOV_plot=='frustum':
+                        behind_ind = (x_star_centered[:,0]>np.pi/2) | (x_star_centered[:,0]<-np.pi/2) | (x_star_centered[:,1]>np.pi/2) | (x_star_centered[:,1]<-np.pi/2) #find things "behind" the camera
+                        d = L/2/np.tan(L/2)
+                        x_star_centered[:,0] = np.tan(x_star_centered[:,0])*d
+                        x_star_centered[:,1] = np.tan(x_star_centered[:,1])*d
+                        x_star_centered[behind_ind,:] = 1e100 #these should not be mapped
+                if (plot_fresco_stars or plot_cool_map_fresco):
+                    #Get stellar PSF map from amuse-fresco
+                    import SinkVis_amuse_fresco
+                    data_stars_fresco = SinkVis_amuse_fresco.make_amuse_fresco_stars_only(x_star_centered,m_star,np.zeros_like(m_star),L,res=res,vmax=fresco_param,mass_rescale=fresco_mass_rescale,mass_limits=fresco_mass_limits)
             if plot_fresco_stars:
                 #Get surface density map with the color map specified
                 fgas = (np.log10(sigma_gas)-np.log10(limits[0]))/np.log10(limits[1]/limits[0])
@@ -879,8 +892,9 @@ def MakeImage(i):
                     fig, ax = plt.subplots()
                     ax.imshow( data, extent=(xlim[0],xlim[1],ylim[0],ylim[1]) )
                     axes_dirs = CoordLabelTransform(dir_local)
-                    ax.set_xlabel(axes_dirs[0]+" [pc]")
-                    ax.set_ylabel(axes_dirs[1]+" [pc]")
+                    if not FOV_plot:
+                        ax.set_xlabel(axes_dirs[0]+" [pc]")
+                        ax.set_ylabel(axes_dirs[1]+" [pc]")
                     fig.set_size_inches(6, 6)
                     #plt.figure(num=fig.number, figsize=(1.3*gridres/150, 1.2*gridres/150), dpi=550)
                     fig.savefig(fname,dpi=int(gridres/5))
@@ -1053,7 +1067,9 @@ def main(input):
     global FOV_plot; FOV_plot = arguments["--FOV_plot"]
     global FOV_plot_text; FOV_plot_text=''
     if FOV_plot:
-        FOV_plot_text = '_FOV'
+        if not ( (FOV_plot=='spherical') or (FOV_plot=='frustum') ):
+            FOV_plot='frustum'
+        FOV_plot_text = '_FOV_'+FOV_plot
     global boxsize; boxsize=load_from_snapshot("BoxSize",0,datafolder,file_numbers[0])
     full_box_flag = arguments["--full_box"]
     global r;
