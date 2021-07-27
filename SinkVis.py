@@ -168,7 +168,7 @@ def find_sink_in_densest_gas(snapnum):
         return ids[-N_high:]
 
 def CoordTransformMtx(e3, e2_orig=None):
-    #Prepare some alternatives in case we get parallel or misisng e2
+    #Prepare some alternatives in case we get parallel or missing e2
     ey = np.array([0,1,0])
     ez = np.array([0,0,1])
     e2_to_try = [ey, ez]
@@ -177,10 +177,12 @@ def CoordTransformMtx(e3, e2_orig=None):
     for e2 in e2_to_try:
         e1 = np.cross(e2,e3)
         if np.linalg.norm(e1):
+            e1 = e1/np.linalg.norm(e1)
             break
+    e2 = np.cross(e3,e1); e2 = e2/np.linalg.norm(e1) #normalization unnecessary, but better to be sure
     return np.vstack((e1,e2,e3))
 
-def CoordTransform(x,dir_local):
+def CoordTransform(x,dir_local,e2_orig=None):
     if isinstance(dir_local, str):
         if x.ndim == 2:
             roll_axis = -1
@@ -188,7 +190,7 @@ def CoordTransform(x,dir_local):
             roll_axis = 0
         return np.roll(x, {'z': 0, 'y': 1, 'x': 2}[dir_local], axis=roll_axis)
     else:
-        transform_mtx = CoordTransformMtx(dir_local)
+        transform_mtx = CoordTransformMtx(dir_local,e2_orig=e2_orig)
         return (x @ transform_mtx)
 
 def CoordLabelTransform(dir_local):
@@ -291,25 +293,27 @@ def MakeImage(i):
 
     #Deal with projection direction
     dir_local = arguments["--dir"]
+    ez = np.array([0,0,1])
+    #Get initial projection direction
+    if arguments["--dir"] in ['x','y','z']:
+        dir_init=CoordTransform(ez,arguments["--dir"]) #get it in vector format
+    else:
+        dir_init=dir_local
+    dir_e2 = CoordTransformMtx(dir_init)[1,:]
     if rotating_images:
-        ez = np.array([0,0,1])
-        #Get initial projection direction
-        if arguments["--dir"] in ['x','y','z']:
-            dir_init=CoordTransform(ez,arguments["--dir"]) #get it in vector format
-        else:
-            dir_init=dir_local
         #Get coordinate system for rotation
         transform_mtx = CoordTransformMtx(rotation_axis)
-        inv_transform_mtx = np.linalg.inv(transform_mtx)
         #Calculate rotation for current images
         theta = rotation_init
         if not target_time:
             theta += i * rotation_rate
         rotation_mtx = np.array(((np.cos(theta), np.sin(theta),0), (-np.sin(theta), np.cos(theta),0), (0,0,1)))
         dir_local = transform_mtx.transpose() @ (rotation_mtx @ (transform_mtx @ dir_init))
+        dir_e2 = transform_mtx.transpose() @ (rotation_mtx @ (transform_mtx @ dir_e2))
+    
     #Deal with centering
-    center = CoordTransform(center_global,dir_local)
-    box_center = CoordTransform(np.array([boxsize,boxsize,boxsize])/2,dir_local)
+    center = CoordTransform(center_global,dir_local, e2_orig=dir_e2)
+    box_center = CoordTransform(np.array([boxsize,boxsize,boxsize])/2,dir_local, e2_orig=dir_e2)
 
     snapnum1=file_numbers[i]
     snapnum2=(file_numbers[min(i+1,len(filenames)-1)] if ((n_interp>1) or target_time) else snapnum1)
@@ -366,10 +370,10 @@ def MakeImage(i):
                 doubles = unique[counts>1]
                 id2s[np.in1d(id2s,doubles)]=-1
                 x1s, x2s = length_unit*np.array(load_from_snapshot("Coordinates",sink_type,datafolder,snapnum1))[id1s.argsort()], length_unit*np.array(load_from_snapshot("Coordinates",sink_type,datafolder,snapnum2))[id2s.argsort()]
-                x1s, x2s = CoordTransform(x1s,dir_local), CoordTransform(x2s,dir_local)
+                x1s, x2s = CoordTransform(x1s,dir_local, e2_orig=dir_e2), CoordTransform(x2s,dir_local, e2_orig=dir_e2)
                 m1s, m2s = mass_unit*np.array(load_from_snapshot("Masses",sink_type,datafolder,snapnum1))[id1s.argsort()], mass_unit*np.array(load_from_snapshot("Masses",sink_type,datafolder,snapnum2))[id2s.argsort()]
                 v1s, v2s = velocity_unit*np.array(load_from_snapshot("Velocities",sink_type,datafolder,snapnum1))[id1s.argsort()], velocity_unit*np.array(load_from_snapshot("Velocities",sink_type,datafolder,snapnum2))[id2s.argsort()]
-                v1s, v2s = CoordTransform(v1s,dir_local), CoordTransform(v2s,dir_local)
+                v1s, v2s = CoordTransform(v1s,dir_local, e2_orig=dir_e2), CoordTransform(v2s,dir_local, e2_orig=dir_e2)
                 # take only the particles that are in both snaps
                 common_sink_ids = np.intersect1d(id1s,id2s)
                 if slice_height:
@@ -437,18 +441,18 @@ def MakeImage(i):
                     abundance1 = (np.array(load_from_snapshot("Metallicity",0,datafolder,snapnum1))[:,abundance_map])[id1_order]
                     abundance2 = (np.array(load_from_snapshot("Metallicity",0,datafolder,snapnum2))[:,abundance_map])[id2_order]
                 x1, x2 = length_unit*np.array(load_from_snapshot("Coordinates",0,datafolder,snapnum1))[id1_order], length_unit*np.array(load_from_snapshot("Coordinates",0,datafolder,snapnum2))[id2_order]
-                x1, x2 = CoordTransform(x1,dir_local), CoordTransform(x2,dir_local)
+                x1, x2 = CoordTransform(x1,dir_local, e2_orig=dir_e2), CoordTransform(x2,dir_local, e2_orig=dir_e2)
                 if not galunits:
                     x1 -= box_center + center
                     x2 -= box_center + center
                 v1, v2 = velocity_unit*np.array(load_from_snapshot("Velocities",0,datafolder,snapnum1))[id1_order], velocity_unit*np.array(load_from_snapshot("Velocities",0,datafolder,snapnum2))[id2_order]
-                v1, v2 = CoordTransform(v1,dir_local), CoordTransform(v2,dir_local)
+                v1, v2 = CoordTransform(v1,dir_local, e2_orig=dir_e2), CoordTransform(v2,dir_local, e2_orig=dir_e2)
                 u1, u2 = np.array(load_from_snapshot("InternalEnergy",0,datafolder,snapnum1))[id1_order], np.array(load_from_snapshot("InternalEnergy",0,datafolder,snapnum2))[id2_order]
                 h1, h2 = length_unit*np.array(load_from_snapshot("SmoothingLength",0,datafolder,snapnum1))[id1_order], length_unit*np.array(load_from_snapshot("SmoothingLength",0,datafolder,snapnum2))[id2_order]
                 m1, m2 = mass_unit*np.array(load_from_snapshot("Masses",0,datafolder,snapnum1))[id1_order], mass_unit*np.array(load_from_snapshot("Masses",0,datafolder,snapnum2))[id2_order]
                 if plot_B_map or calculate_all_maps:
                     B1, B2 = B_unit*np.array(load_from_snapshot("MagneticField",0,datafolder,snapnum1))[id1_order], B_unit*np.array(load_from_snapshot("MagneticField",0,datafolder,snapnum2))[id2_order]
-                    B1, B2 = CoordTransform(B1,dir_local), CoordTransform(B2,dir_local)
+                    B1, B2 = CoordTransform(B1,dir_local, e2_orig=dir_e2), CoordTransform(B2,dir_local, e2_orig=dir_e2)
                 # take only the cells that are in both snaps
                 common_ids = np.intersect1d(id1,id2)
                 if slice_height:
