@@ -292,12 +292,13 @@ def MakeImage(i):
         GridSurfaceDensity_func = GridSurfaceDensityMultigrid
 
     #Deal with projection direction
-    dir_local = arguments["--dir"]
     ez = np.array([0,0,1])
     #Get initial projection direction
     if arguments["--dir"] in ['x','y','z']:
+        dir_local = arguments["--dir"]
         dir_init=CoordTransform(ez,arguments["--dir"]) #get it in vector format
     else:
+        dir_local = np.array([float(c) for c in arguments["--dir"].split(',')]) #input in vector form
         dir_init=dir_local
     dir_e2 = CoordTransformMtx(dir_init)[1,:]
     if rotating_images:
