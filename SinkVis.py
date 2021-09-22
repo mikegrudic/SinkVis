@@ -78,7 +78,7 @@ Options:
 #Example
 # python SinkVis.py /panfs/ds08/hopkins/guszejnov/GMC_sim/Tests/200msun/MHD_isoT_2e6/output/snapshot*.hdf5 --np=24 --keep_only_movie --movie_name=200msun_MHD_isoT_2e6
 
-from meshoid import GridSurfaceDensityMultigrid, GridAverage
+from meshoid import GridSurfaceDensityMultigrid, GridAverage, GridSurfaceDensity
 import meshoid
 from scipy.spatial import cKDTree
 from scipy.interpolate import interp2d
@@ -585,7 +585,7 @@ def MakeImage(i):
                         abundance = interp_step/n_interp * abundance2 + (n_interp-interp_step)/n_interp * abundance1
                         sigma_gas = GridSurfaceDensity_func(m*abundance*normalization, x, h, star_center*0, L, res=res,parallel=True).T
                     else:
-#                        print("Rendering on %d cores"%get_num_threads())
+#                        print("Rendering on %d cores"%get_num_threads())                        
                         sigma_gas = GridSurfaceDensity_func(m*normalization, x, h, star_center*0, L, res=res,parallel=True).T
                     dict_to_pickle['sigma_gas'] = sigma_gas #store gas surface density
                     if plot_T_map or calculate_all_maps:
