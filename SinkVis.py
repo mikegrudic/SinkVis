@@ -22,6 +22,7 @@ Options:
     --abundance_map=<N>        Will plot the surface density of metal species N (so P[:].Metallicity[N] in GIZMO),off by default [default: -1]
     --interp_fac=<N>           Number of interpolating frames per snapshot [default: 1]
     --np=<N>                   Number of processors to run on [default: 1]
+    --np_render=<N>            Number of openMP threads to run rendering on (-1 uses all available cores divided by --np) [default: -1]
     --res=<N>                  Image resolution [default: 512]
     --v_res=<N>                Resolution for overplotted velocity field if plot_v_map is on [default: 32]
     --vector_quiver_map        If enabled the velocity map will be quivers, if not then field line maps
@@ -96,6 +97,7 @@ import aggdraw
 from natsort import natsorted
 from docopt import docopt
 from glob import glob
+from numba import get_num_threads, set_num_threads
 import os
 from sys import argv
 from load_from_snapshot import load_from_snapshot,check_if_filename_exists
@@ -581,39 +583,40 @@ def MakeImage(i):
                     
                     if abundance_map>-1:
                         abundance = interp_step/n_interp * abundance2 + (n_interp-interp_step)/n_interp * abundance1
-                        sigma_gas = GridSurfaceDensity_func(m*abundance*normalization, x, h, star_center*0, L, res=res).T
+                        sigma_gas = GridSurfaceDensity_func(m*abundance*normalization, x, h, star_center*0, L, res=res,parallel=True).T
                     else:
-                        sigma_gas = GridSurfaceDensity_func(m*normalization, x, h, star_center*0, L, res=res).T
+#                        print("Rendering on %d cores"%get_num_threads())
+                        sigma_gas = GridSurfaceDensity_func(m*normalization, x, h, star_center*0, L, res=res,parallel=True).T
                     dict_to_pickle['sigma_gas'] = sigma_gas #store gas surface density
                     if plot_T_map or calculate_all_maps:
                         #Tmap_gas = GridAverage(u, x, h,star_center*0, L, res=res).T #should be similar to mass weighted average if particle masses roughly constant, also converting to K
                         #logTmap_gas = GridAverage(np.log10(u), x, h,star_center*0, L, res=res).T #average of log T so that it is not completely dominated by the warm ISM
-                        weight_map = GridSurfaceDensity(np.ones(len(u))*normalization, x, h,star_center*0, L, res=res) #sum of weights
-                        Tmap_gas = (GridSurfaceDensity(u*normalization, x, h,star_center*0, L, res=res)/weight_map).T #should be similar to mass weighted average if particle masses roughly constant, also converting to K
+                        weight_map = GridSurfaceDensity(np.ones(len(u))*normalization, x, h,star_center*0, L, res=res,parallel=True) #sum of weights
+                        Tmap_gas = (GridSurfaceDensity(u*normalization, x, h,star_center*0, L, res=res,parallel=True)/weight_map).T #should be similar to mass weighted average if particle masses roughly constant, also converting to K
                         dict_to_pickle['Tmap_gas'] = Tmap_gas #store gas temperature
-                        logTmap_gas = (GridSurfaceDensity(np.log10(u)*normalization, x, h,star_center*0, L, res=res)/weight_map).T #average of log T so that it is not completely dominated by the warm ISM
+                        logTmap_gas = (GridSurfaceDensity(np.log10(u)*normalization, x, h,star_center*0, L, res=res,parallel=True)/weight_map).T #average of log T so that it is not completely dominated by the warm ISM
                         dict_to_pickle['logTmap_gas'] = logTmap_gas #store gas temperature
                     if plot_v_map or plot_B_map or calculate_all_maps:
-                        weight_map_cells = GridSurfaceDensity(np.ones(len(v[:,0]))*normalization, x, h,star_center*0, L, res=res) #sum of weights, this will be a cell-number (i.e. mass) weighted average
+                        weight_map_cells = GridSurfaceDensity(np.ones(len(v[:,0]))*normalization, x, h,star_center*0, L, res=res,parallel=True) #sum of weights, this will be a cell-number (i.e. mass) weighted average
                         dict_to_pickle['weight_map_cells'] = weight_map_cells
                     if plot_v_map or calculate_all_maps:
                         v_field = np.zeros( (res,res,2) )
-                        v_field[:,:,0] = (GridSurfaceDensity(v[:,0]*normalization, x, h,star_center*0, L, res=res)/weight_map_cells).T
-                        v_field[:,:,1] = (GridSurfaceDensity(v[:,1]*normalization, x, h,star_center*0, L, res=res)/weight_map_cells).T
+                        v_field[:,:,0] = (GridSurfaceDensity(v[:,0]*normalization, x, h,star_center*0, L, res=res,parallel=True)/weight_map_cells).T
+                        v_field[:,:,1] = (GridSurfaceDensity(v[:,1]*normalization, x, h,star_center*0, L, res=res,parallel=True)/weight_map_cells).T
                         dict_to_pickle['v_field'] = v_field #store gas velocity
                     if plot_B_map or calculate_all_maps:
                         B_field = np.zeros( (res,res,2) )
-                        B_field[:,:,0] = (GridSurfaceDensity(B[:,0]*normalization, x, h,star_center*0, L, res=res)/weight_map_cells).T
-                        B_field[:,:,1] = (GridSurfaceDensity(B[:,1]*normalization, x, h,star_center*0, L, res=res)/weight_map_cells).T
+                        B_field[:,:,0] = (GridSurfaceDensity(B[:,0]*normalization, x, h,star_center*0, L, res=res,parallel=True)/weight_map_cells).T
+                        B_field[:,:,1] = (GridSurfaceDensity(B[:,1]*normalization, x, h,star_center*0, L, res=res,parallel=True)/weight_map_cells).T
                         dict_to_pickle['B_field'] = B_field #store magnetic field
                     if plot_cool_map or calculate_all_maps:
-                        sigma_1D = GridSurfaceDensity_func(m * v[:,2]**2 * normalization, x, h,star_center*0, L, res=res).T/sigma_gas
-                        v_avg = GridSurfaceDensity_func(m * v[:,2] * normalization, x, h,star_center*0, L, res=res).T/sigma_gas
+                        sigma_1D = GridSurfaceDensity_func(m * v[:,2]**2 * normalization, x, h,star_center*0, L, res=res,parallel=True).T/sigma_gas
+                        v_avg = GridSurfaceDensity_func(m * v[:,2] * normalization, x, h,star_center*0, L, res=res,parallel=True).T/sigma_gas
                         sigma_1D = np.sqrt(sigma_1D - v_avg**2) / 1e3
                         dict_to_pickle['sigma_1D'] = sigma_1D #store gas velocity dispersion
                     if plot_energy_map or calculate_all_maps:
                         kin_energy_weighted = m*(1.0+np.sum(v**2,axis=1)/(energy_v_scale**2))
-                        energy_map_gas = GridSurfaceDensity(kin_energy_weighted*normalization, x, h, star_center*0, L, res=res).T
+                        energy_map_gas = GridSurfaceDensity(kin_energy_weighted*normalization, x, h, star_center*0, L, res=res,parallel=True).T
                         dict_to_pickle['energy_map_gas'] = energy_map_gas #store gas kinetic energy map
                 #Save data
                 if not no_pickle:
@@ -1009,6 +1012,7 @@ def make_input(files=["snapshot_000.hdf5"], rmax=False, full_box=False, target_t
         "--energy_limits": str(energy_limits[0])+","+str(energy_limits[1]),
         "--interp_fac": interp_fac,
         "--np": np,
+        "--np_render": np_render,
         "--res": res,
         "--v_res": res,
         "--velocity_scale": velocity_scale,
@@ -1077,6 +1081,11 @@ def main(input):
     else:
         namestring="snapshot"
     nproc = int(arguments["--np"])
+    np_render = int(arguments["--np_render"])
+    if np_render == -1: # use all available
+        total_cores = get_num_threads()
+        np_render = total_cores // nproc
+    set_num_threads(np_render)
     global n_interp; n_interp = int(arguments["--interp_fac"])
     global file_numbers; file_numbers = [int(re.search(namestring+'_\d*', f).group(0).replace(namestring+'_','')) for f in filenames]
     global datafolder; datafolder=(filenames[0].split(namestring+"_")[0])
