@@ -1,7 +1,10 @@
 #Install amuse first:
 pip install amuse-framework --user
 pip install amuse-fresco amuse-masc --user
-pip install amuse-sse --user
 #See https://amusecode.github.io/installation if there are issues
+
+
+####Outdated instructions for older version
+#pip install amuse-sse --user
 #Test the installation by running amuse_fresco_test.py (first change the filename variable so tht it points to a valid snapshot)
 #If running the test produces errors, try replacing gridify.py in your local amuse install with the version in this folder (location of gridify.py in amuse is ~/.local/lib/python3.7/site-packages/amuse/ext/gridify.py )
