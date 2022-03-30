@@ -5,7 +5,7 @@ import os
 
 
 def load_from_snapshot(value,ptype,sdir,snum,particle_mask=numpy.zeros(0),axis_mask=numpy.zeros(0),
-        units_to_physical=True,four_char=False,snapshot_name='snapshot',snapdir_name='snapdir',extension='.hdf5'):
+        units_to_physical=True,four_char=False,snapshot_name='snapshot',snapdir_name='snapdir',extension='.hdf5',name_addition=''):
     '''
 
     The routine 'load_from_snapshot' is designed to load quantities directly from GIZMO 
@@ -84,7 +84,7 @@ def load_from_snapshot(value,ptype,sdir,snum,particle_mask=numpy.zeros(0),axis_m
 
     # attempt to verify if a file with this name and directory path actually exists
     fname,fname_base,fname_ext = check_if_filename_exists(sdir,snum,\
-        snapshot_name=snapshot_name,snapdir_name=snapdir_name,extension=extension,four_char=four_char)
+        snapshot_name=snapshot_name,snapdir_name=snapdir_name,extension=extension,four_char=four_char,name_addition=name_addition)
     # if no valid file found, give up
     if(fname=='NULL'): 
         print('Could not find a valid file with this path/name/extension - please check these settings')
@@ -219,7 +219,7 @@ def load_from_snapshot(value,ptype,sdir,snum,particle_mask=numpy.zeros(0),axis_m
 
 
 
-def check_if_filename_exists(sdir,snum,snapshot_name='snapshot',snapdir_name='snapdir',extension='.hdf5',four_char=False):
+def check_if_filename_exists(sdir,snum,snapshot_name='snapshot',snapdir_name='snapdir',extension='.hdf5',four_char=False,name_addition=''):
     '''
     This subroutine attempts to check if a snapshot or snapshot directory with 
     valid GIZMO outputs exists. It will check several common conventions for 
@@ -262,6 +262,7 @@ def check_if_filename_exists(sdir,snum,snapshot_name='snapshot',snapdir_name='sn
         if (four_char==True): ext='0'+ext
         if (snum>=1000): ext=str(snum)
         fname+=ext
+        fname+=name_addition
         fname_base=fname
 
         # isolate the specific path up to the snapshot name, because we will try to append several different choices below
