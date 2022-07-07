@@ -22,7 +22,7 @@ Options:
     --abundance_map=<N>        Will plot the surface density of metal species N (so P[:].Metallicity[N] in GIZMO),off by default [default: -1]
     --interp_fac=<N>           Number of interpolating frames per snapshot [default: 1]
     --np=<N>                   Number of processors to run on [default: 1]
-    --np_render=<N>            Number of openMP threads to run rendering on (-1 uses all available cores divided by --np) [default: -1]
+    --np_render=<N>            Number of openMP threads to run rendering on (-1 uses all available cores divided by --np) [default: 1]
     --res=<N>                  Image resolution [default: 512]
     --v_res=<N>                Resolution for overplotted velocity field if plot_v_map is on [default: 32]
     --vector_quiver_map        If enabled the velocity map will be quivers, if not then field line maps
