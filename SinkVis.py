@@ -445,14 +445,16 @@ def MakeImage(i):
                     abundance2 = (np.array(load_from_snapshot("Metallicity",0,datafolder,snapnum2))[:,abundance_map])[id2_order]
                 x1, x2 = length_unit*np.array(load_from_snapshot("Coordinates",0,datafolder,snapnum1))[id1_order], length_unit*np.array(load_from_snapshot("Coordinates",0,datafolder,snapnum2))[id2_order]
                 x1, x2 = CoordTransform(x1,dir_local, e2_orig=dir_e2), CoordTransform(x2,dir_local, e2_orig=dir_e2)
-                if not galunits:
-                    x1 -= box_center + center
-                    x2 -= box_center + center
+                #if not galunits:
+                x1 -= box_center + center
+                x2 -= box_center + center
+                
                 v1, v2 = velocity_unit*np.array(load_from_snapshot("Velocities",0,datafolder,snapnum1))[id1_order], velocity_unit*np.array(load_from_snapshot("Velocities",0,datafolder,snapnum2))[id2_order]
                 v1, v2 = CoordTransform(v1,dir_local, e2_orig=dir_e2), CoordTransform(v2,dir_local, e2_orig=dir_e2)
                 u1, u2 = np.array(load_from_snapshot("InternalEnergy",0,datafolder,snapnum1))[id1_order], np.array(load_from_snapshot("InternalEnergy",0,datafolder,snapnum2))[id2_order]
                 h1, h2 = length_unit*np.array(load_from_snapshot("SmoothingLength",0,datafolder,snapnum1))[id1_order], length_unit*np.array(load_from_snapshot("SmoothingLength",0,datafolder,snapnum2))[id2_order]
                 m1, m2 = mass_unit*np.array(load_from_snapshot("Masses",0,datafolder,snapnum1))[id1_order], mass_unit*np.array(load_from_snapshot("Masses",0,datafolder,snapnum2))[id2_order]
+                
                 if plot_B_map or calculate_all_maps:
                     B1, B2 = B_unit*np.array(load_from_snapshot("MagneticField",0,datafolder,snapnum1))[id1_order], B_unit*np.array(load_from_snapshot("MagneticField",0,datafolder,snapnum2))[id2_order]
                     B1, B2 = CoordTransform(B1,dir_local, e2_orig=dir_e2), CoordTransform(B2,dir_local, e2_orig=dir_e2)
@@ -881,7 +883,7 @@ def MakeImage(i):
                         scale_kpc=10**np.round(np.log10(r*0.5/1000))
                         size_scale_text="%3.3gkpc"%(scale_kpc)
                         size_scale_ending=gridres/16+gridres*(scale_kpc*1000)/(2*r)
-                    if (r>1e-2):
+                    elif (r>1e-2):
                         scale_pc=10**np.round(np.log10(r*0.5))
                         size_scale_text="%3.3gpc"%(scale_pc)
                         size_scale_ending=gridres/16+gridres*(scale_pc)/(2*r)
@@ -893,7 +895,9 @@ def MakeImage(i):
                     draw.line(((gridres/16, 7*gridres/8), (size_scale_ending, 7*gridres/8)), fill="#FFFFFF", width=6)
                     draw.text((gridres/16, 7*gridres/8 + 5), size_scale_text, font=font)
                 if not no_timestamp:
-                    if (time*979>=1e-2):
+                    if (time*979>=100):
+                        time_text="%3.2gGyr"%(time*0.979)
+                    elif (time*979>=1e-2):
                         time_text="%3.2gMyr"%(time*979)
                     elif(time*979>=1e-4):
                         time_text="%3.2gkyr"%(time*979*1e3)
@@ -1222,7 +1226,9 @@ def main(input):
     boxsize *= length_unit
     r *= length_unit
     L *= length_unit
-
+    center_global *= length_unit
+    slice_height *= length_unit
+    
     global font; font = ImageFont.truetype("LiberationSans-Regular.ttf", res//12)
 
     #Only change the pickle filename if we rescale
