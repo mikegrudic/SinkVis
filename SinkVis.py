@@ -40,6 +40,7 @@ Options:
     --sink_relscale=<f>        Relative size scale of a sink particles at 10xsink_scale to the entire picture, e.g. 0.01 means these stars will be 1% of the entire plotting area, [default: 0.0025]
     --center_on_star           Center image on the N_high most massive sink particles
     --center_on_densest        Center image on the N_high sinks with the densest gas nearby
+    --center_on_tracer_ID=<ID>      Center image on the tracer (type 3) particle of this ID [default: 0]
     --N_high=<N>               Number of sinks to center on using the center_on_star or center_on_densest flags [default: 1]
     --center_on_ID=<ID>        Center image on sink particle with specific ID, does not center if zero [default: 0]
     --rotating_images          If set SinkVis will create a set of images for a single snashot by rotating the system around a pre-specified rotation_axis
@@ -284,6 +285,7 @@ def get_lic_image(vx,vy):
 
 def MakeImage(i):
     global center_on_ID
+    global center_on_tracer_ID
     global limits
     global Tlimits
     global energy_limits
@@ -517,31 +519,44 @@ def MakeImage(i):
                     dict_to_pickle['x_star'] = x_star; dict_to_pickle['v_star'] = v_star; dict_to_pickle['m_star'] = m_star #store data to save
                 star_center = np.zeros(3)
                 star_v_center = np.zeros(3)
-                if sink_ID:
-                    star_center = np.squeeze(x_star[common_sink_ids==sink_ID,:]-box_center)
-                    star_v_center = np.squeeze(v_star[common_sink_ids==sink_ID,:])
-                    if smooth_center:
-                        #Try to get more sink data and use it to smooth
-                        star_center_coords=[]; snap_vals=[];
-                        for snum in (snapnum1+np.arange(-smooth_center,smooth_center)):
-                            if check_if_filename_exists(datafolder,snum)[0] != 'NULL': #snap exists
-                                ids_temp = np.array(load_from_snapshot("ParticleIDs",sink_type,datafolder,snum))
-                                if np.any(ids_temp==sink_ID): #the sink we want to center on is present
-                                    xs_temp = length_unit*np.array(load_from_snapshot("Coordinates",sink_type,datafolder,snum))
-                                    star_center_temp = np.squeeze(xs_temp[ids_temp==sink_ID,:]-box_center)
-                                    star_center_coords.append(star_center_temp)
-                                    snap_vals.append(snum)
-                        star_center_coords = np.array(star_center_coords); snap_vals = np.array(snap_vals)
-                        #Let's fit a line to the motion
-                        xfit = np.poly1d(np.polyfit(snap_vals,star_center_coords[:,0],1))
-                        yfit = np.poly1d(np.polyfit(snap_vals,star_center_coords[:,1],1))
-                        zfit = np.poly1d(np.polyfit(snap_vals,star_center_coords[:,2],1))
-                        #Let's estimate the new center coordinate
-                        star_center_old = star_center+0
-                        star_center[0] = xfit(snapnum1+interp_step/n_interp)
-                        star_center[1] = yfit(snapnum1+interp_step/n_interp)
-                        star_center[2] = zfit(snapnum1+interp_step/n_interp)
-                        print("Smoothing changed centering from %g %g %g to %g %g %g"%(star_center_old[0],star_center_old[1],star_center_old[2],star_center[0],star_center[1],star_center[2]))
+                if sink_ID or center_on_tracer_ID:
+                    if sink_ID:
+                        star_center = np.squeeze(x_star[common_sink_ids==sink_ID,:]-box_center)
+                        star_v_center = np.squeeze(v_star[common_sink_ids==sink_ID,:])
+                        if smooth_center:
+                            #Try to get more sink data and use it to smooth
+                            star_center_coords=[]; snap_vals=[];
+                            for snum in (snapnum1+np.arange(-smooth_center,smooth_center)):
+                                if check_if_filename_exists(datafolder,snum)[0] != 'NULL': #snap exists
+                                    ids_temp = np.array(load_from_snapshot("ParticleIDs",sink_type,datafolder,snum))
+                                    if np.any(ids_temp==sink_ID): #the sink we want to center on is present
+                                        xs_temp = length_unit*np.array(load_from_snapshot("Coordinates",sink_type,datafolder,snum))
+                                        star_center_temp = np.squeeze(xs_temp[ids_temp==sink_ID,:]-box_center)
+                                        star_center_coords.append(star_center_temp)
+                                        snap_vals.append(snum)
+                            star_center_coords = np.array(star_center_coords); snap_vals = np.array(snap_vals)
+                            #Let's fit a line to the motion
+                            xfit = np.poly1d(np.polyfit(snap_vals,star_center_coords[:,0],1))
+                            yfit = np.poly1d(np.polyfit(snap_vals,star_center_coords[:,1],1))
+                            zfit = np.poly1d(np.polyfit(snap_vals,star_center_coords[:,2],1))
+                            #Let's estimate the new center coordinate
+                            star_center_old = star_center+0
+                            star_center[0] = xfit(snapnum1+interp_step/n_interp)
+                            star_center[1] = yfit(snapnum1+interp_step/n_interp)
+                            star_center[2] = zfit(snapnum1+interp_step/n_interp)
+                            print("Smoothing changed centering from %g %g %g to %g %g %g"%(star_center_old[0],star_center_old[1],star_center_old[2],star_center[0],star_center[1],star_center[2]))
+                    elif center_on_tracer_ID: #hacking the star zoom tzo zoom on tracer
+                        tracer_type=3
+                        #Get tracer position and velocity
+                        tracer_ids = np.int_(load_from_snapshot("ParticleIDs",tracer_type,datafolder,snapnum1))
+                        x1t, x2t = length_unit*np.array(load_from_snapshot("Coordinates",tracer_type,datafolder,snapnum1)), length_unit*np.array(load_from_snapshot("Coordinates",tracer_type,datafolder,snapnum2))
+                        x1t, x2t = CoordTransform(x1t,dir_local, e2_orig=dir_e2), CoordTransform(x2t,dir_local, e2_orig=dir_e2)
+                        v1t, v2t = length_unit*np.array(load_from_snapshot("Velocities",tracer_type,datafolder,snapnum1)), length_unit*np.array(load_from_snapshot("Velocities",tracer_type,datafolder,snapnum2))
+                        v1t, v2t = CoordTransform(v1t,dir_local, e2_orig=dir_e2), CoordTransform(v2t,dir_local, e2_orig=dir_e2)
+                        x_tracer = interp_step/n_interp * x2t + (n_interp-interp_step)/n_interp * x1t
+                        v_tracer = interp_step/n_interp * v2t + (n_interp-interp_step)/n_interp * v1t
+                        star_center = np.squeeze(x_tracer[tracer_ids==center_on_tracer_ID,:]-box_center)
+                        star_v_center = np.squeeze(v_tracer[tracer_ids==center_on_tracer_ID,:])
                 dict_to_pickle['star_center'] = star_center
                 if numpart_total[0]:
                     x = interp_step/n_interp * x2 + (n_interp-interp_step)/n_interp * x1
@@ -1000,7 +1015,7 @@ def make_input(files=["snapshot_000.hdf5"], rmax=False, full_box=False, target_t
                 plot_T_map=True,plot_v_map=False,plot_B_map=False,plot_cool_map=False,plot_energy_map=False,calculate_all_maps=False,plot_fresco_stars=False,sink_scale=0.1, sink_relscale=0.0025, sink_type=5, galunits=False,name_addition="",center_on_ID=0,no_pickle=False, no_timestamp=False,slice_height=0,velocity_scale=1000,arrow_color='white',\
                 vector_quiver_map=False, energy_v_scale=1000,sharpen_LIC_map=False,LIC_map_max_alpha=0.5,\
                 no_size_scale=False, center_on_densest=False, draw_axes=False, remake_only=False, rescale_hsml=1.0, smooth_center=False, highlight_wind=1.0,\
-                disable_multigrid=False, rotating_images=False, rotation_init=0,rotation_max=6.2831853, rotation_steps=4,rotation_axis=[0,0,1]):
+                disable_multigrid=False, rotating_images=False, rotation_init=0,rotation_max=6.2831853, rotation_steps=4,rotation_axis=[0,0,1], center_on_tracer_ID=0):
     if (not isinstance(files, list)):
         files=[files]
     arguments={
@@ -1034,6 +1049,7 @@ def make_input(files=["snapshot_000.hdf5"], rmax=False, full_box=False, target_t
         "--galunits": galunits,
         "--center_on_star": center_on_star,
         "--center_on_ID": center_on_ID,
+        "--center_on_tracer_ID": center_on_tracer_ID,
         "--center_on_densest": center_on_densest,
         "--N_high": N_high,
         "--Tcmap": Tcmap,
@@ -1202,6 +1218,7 @@ def main(input):
     global sink_relscale; sink_relscale = float(arguments["--sink_relscale"])
     global center_on_star; center_on_star = 1 if arguments["--center_on_star"] else 0
     global center_on_ID; center_on_ID = int(arguments["--center_on_ID"]) if arguments["--center_on_ID"] else 0
+    global center_on_tracer_ID; center_on_tracer_ID = int(arguments["--center_on_tracer_ID"]) if arguments["--center_on_tracer_ID"] else 0
     global smooth_center; smooth_center = int(arguments["--smooth_center"])
     global smooth_text; smooth_text=''
     if smooth_center:
@@ -1229,7 +1246,7 @@ def main(input):
     center_global *= length_unit
     slice_height *= length_unit
     
-    global font; font = ImageFont.truetype("LiberationSans-Regular.ttf", res//12)
+    global font; font =  ImageFont.truetype("/home/x-dguszejn/.fonts/LiberationSans-Regular.ttf", res//12)
 
     #Only change the pickle filename if we rescale
     global rescale_text
