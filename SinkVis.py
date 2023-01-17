@@ -711,6 +711,7 @@ def MakeImage(i):
                 #Gas temperature map
                 fegas = (np.log10(energy_map_gas)-np.log10(energy_limits[0]))/np.log10(energy_limits[1]/energy_limits[0])
                 fegas = np.clip(fegas,0,1)
+                fegas = np.flipud(fegas)
                 energy_data = fegas[:,:,np.newaxis]*plt.get_cmap(ecmap)(fegas)[:,:,:3]
                 energy_data = np.clip(energy_data,0,1)
 
